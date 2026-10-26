@@ -1,17 +1,5 @@
-"""Extrae de datos.gov.co (API SODA) los estados financieros NIIF del sector.
-
-Sector: CIIU F41 (edificios), F43 (actividades especializadas), L68 (inmobiliarias)
-y, como sensibilidad, F42 (obras civiles). Fuentes (Superintendencia de Sociedades,
-licencia CC BY-SA 4.0):
-  - 6hqw-m3dm  Estados Financieros NIIF - Caratula
-  - pfdp-zks5  Estados Financieros NIIF - Estado de Situacion Financiera
-  - prwj-nzxa  Estados Financieros NIIF - Estado de Resultado Integral
-
-Salida (formato largo, sin transformar) en data/raw/:
-  caratula_ciiu.parquet, caratula_atributos.parquet,
-  balance_largo.parquet, resultados_largo.parquet
-
-Uso: python src/extract_niif.py [--max-nits N]   (N solo para pruebas)
+"""
+EXTRAE ALGUNOS ARCHIVOS NIIF
 """
 import argparse
 import pathlib
@@ -135,7 +123,7 @@ def main():
         attr.to_parquet(RAW / "caratula_atributos.parquet", index=False)
 
     # Desde 2018 el periodo vigente se rotula "Periodo Actual"; en 2016-2017 se rotula con el año
-    # ("2016-dic-31" en el balance, "2016" en resultados). El filtro fino se hace en build_panel.py.
+    # ("2016-dic-31" en el balance, "2016" en resultados). El filtro fino se hace en build_resumen_empresas.py.
     filtro = ("(periodo='Periodo Actual' OR periodo in ('2016','2017','2016-dic-31','2017-dic-31')) "
               "AND (punto_entrada like '%Individual%' OR punto_entrada like '%Separado%')")
     sel = "nit,numero_radicado,fecha_corte,punto_entrada,periodo,concepto,valor"

@@ -1,23 +1,4 @@
-"""Construye el panel empresa-año con razones financieras y la variable objetivo.
 
-Entradas (data/raw/): caratula_ciiu, caratula_atributos, balance_largo,
-resultados_largo (ver extract_niif.py) y los cortes de insolvencia en
-data/raw/insolvencia/insolvencia_AAAA-MM.xlsx (descarga manual).
-
-Salidas (data/processed/):
-  panel_empresa_anio.parquet   una fila por empresa y año fiscal
-  insolvencia_eventos.parquet  una fila por NIT con su año de apertura
-
-Reglas (ver docs/diccionario_datos.md):
-  - Se conserva un reporte por empresa-año: Individual antes que Separado y,
-    a igualdad, el último radicado.
-  - y_h1 = 1 si el proceso se abre en el año siguiente al de los estados
-    financieros; y_h2 = 1 si se abre dos años después.
-  - Los años posteriores a la apertura se marcan con post_evento y no se usan
-    para modelar (evita fugas de información).
-  - Años de etiqueta incompleta (2026 solo llega hasta el último corte)
-    se marcan con h1_valido / h2_valido.
-"""
 import glob
 import pathlib
 import re
@@ -143,13 +124,13 @@ def main():
     res = pivotar_estados(pd.read_parquet(RAW / "resultados_largo.parquet"), RESULTADOS)
 
     llaves = ["nit", "numero_radicado", "fecha_corte", "punto_entrada"]
-    panel = bal.merge(res, on=llaves, how="left")
+    resumen = bal.merge(res, on=llaves, how="left")
 
     # un reporte por empresa-año
-    panel = panel[panel["fecha_corte"].dt.month == 12].copy()
-    panel["anio"] = panel["fecha_corte"].dt.year
-    panel["prioridad"] = panel["punto_entrada"].str.contains("Individual").map({True: 0, False: 1})
-    panel = (panel.sort_values(["nit", "anio", "prioridad", "numero_radicado"],
+    resumen = resumen[resumen["fecha_corte"].dt.month == 12].copy()
+    resumen["anio"] = resumen["fecha_corte"].dt.year
+    resumen["prioridad"] = resumen["punto_entrada"].str.contains("Individual").map({True: 0, False: 1})
+    resumen = (resumen.sort_values(["nit", "anio", "prioridad", "numero_radicado"],
                                ascending=[True, True, True, False])
                   .drop_duplicates(["nit", "anio"], keep="first")
                   .drop(columns="prioridad"))
@@ -158,12 +139,12 @@ def main():
     ciiu["fecha_corte"] = pd.to_datetime(ciiu["fecha_corte"])
     c = (ciiu.sort_values("numero_radicado").drop_duplicates(["nit", "numero_radicado"], keep="last")
              [["nit", "numero_radicado", "ciiu"]])
-    panel = panel.merge(c, on=["nit", "numero_radicado"], how="left")
+    resumen = resumen.merge(c, on=["nit", "numero_radicado"], how="left")
     # si el radicado elegido no trae CIIU, se usa el último CIIU conocido del NIT
     ultimo = ciiu.sort_values("numero_radicado").groupby("nit")["ciiu"].last()
-    panel["ciiu"] = panel["ciiu"].fillna(panel["nit"].map(ultimo))
-    panel["ciiu_codigo"] = panel["ciiu"].str.extract(r"^([A-Z]\d{4})")
-    panel["ciiu_grupo"] = panel["ciiu_codigo"].str[:3].map(
+    resumen["ciiu"] = resumen["ciiu"].fillna(resumen["nit"].map(ultimo))
+    resumen["ciiu_codigo"] = resumen["ciiu"].str.extract(r"^([A-Z]\d{4})")
+    resumen["ciiu_grupo"] = resumen["ciiu_codigo"].str[:3].map(
         {"F41": "41 Construcción de edificios", "F42": "42 Obras de ingeniería civil",
          "F43": "43 Actividades especializadas", "L68": "68 Actividades inmobiliarias"})
 
@@ -173,10 +154,10 @@ def main():
     attr["fecha_corte"] = pd.to_datetime(attr["fecha_corte"])
     attr = attr.sort_values(["nit", "numero_radicado"]).drop_duplicates(["nit", "var"], keep="last")
     attr = attr.pivot(index="nit", columns="var", values="valor").reset_index()
-    panel = panel.merge(attr, on="nit", how="left")
+    resumen = resumen.merge(attr, on="nit", how="left")
 
     # razones financieras
-    p = panel
+    p = resumen
     p["deuda_financiera"] = p[["fin_corriente", "fin_no_corriente", "prestamos_corriente",
                                "prestamos_no_corriente", "prestamos_parte_corriente"]].sum(axis=1, min_count=1)
     p["liquidez_corriente"] = razon(p.activos_corrientes, p.pasivo_corriente)
@@ -214,12 +195,12 @@ def main():
         p["y_h2"] = ((p.anio_apertura == p.anio + 2)).astype("Int8")
         p["h1_valido"] = ((p.anio + 1) <= ANIO_ETIQUETA_COMPLETO).astype("Int8")
         p["h2_valido"] = ((p.anio + 2) <= ANIO_ETIQUETA_COMPLETO).astype("Int8")
-    panel = p.drop(columns=["ciiu"]).sort_values(["nit", "anio"]).reset_index(drop=True)
-    panel.to_parquet(OUT / "panel_empresa_anio.parquet", index=False)
-    print(f"Panel: {len(panel):,} empresa-año, {panel.nit.nunique():,} empresas, "
-          f"años {panel.anio.min()}-{panel.anio.max()}")
-    if "y_h1" in panel:
-        v = panel[(panel.post_evento == 0) & (panel.h1_valido == 1)]
+    resumen = p.drop(columns=["ciiu"]).sort_values(["nit", "anio"]).reset_index(drop=True)
+    resumen.to_parquet(OUT / "resumen_empresas.parquet", index=False)
+    print(f"Resumen: {len(resumen):,} empresa-año, {resumen.nit.nunique():,} empresas, "
+          f"años {resumen.anio.min()}-{resumen.anio.max()}")
+    if "y_h1" in resumen:
+        v = resumen[(resumen.post_evento == 0) & (resumen.h1_valido == 1)]
         print(f"Horizonte 1 (modelable): {len(v):,} filas, {int(v.y_h1.sum())} eventos "
               f"({v.y_h1.mean():.2%})")
 

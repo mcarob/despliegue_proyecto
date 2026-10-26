@@ -14,10 +14,10 @@ Entrega 1 (semana 3): datos versionados con DVC, exploración de datos y maqueta
 
 ```
 data/raw/            datos crudos (versionados con DVC, no con Git)
-data/processed/      panel empresa-año (versionado con DVC)
-src/                 scripts de extracción y construcción del panel
+data/processed/      resumen_empresas, una fila por empresa-año (versionado con DVC)
+src/                 scripts de extracción y construcción de la tabla resumen_empresas
 notebooks/           exploración de datos
-mockup/              maqueta HTML del tablero
+mockup/              maqueta del tablero (a cargo de otro integrante)
 docs/                diccionario de datos y figuras
 ```
 
@@ -41,7 +41,7 @@ pip install -r requirements.txt
 dvc pull                          # trae los datos versionados (requiere acceso al remoto)
 # o bien, regenerarlos desde las fuentes:
 python src/extract_niif.py        # estados financieros del sector (CIIU 41, 42, 43 y 68)
-python src/build_panel.py         # panel empresa-año con razones y variable objetivo
+python src/build_resumen_empresas.py         # tabla resumen_empresas con razones y variable objetivo
 ```
 
 ## Variable objetivo

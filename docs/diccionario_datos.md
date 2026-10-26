@@ -6,7 +6,7 @@ F41 (construcción de edificios), F43 (actividades especializadas de construcci�
 inmobiliarias). Las obras civiles (F42) se conservan para pruebas de sensibilidad.
 
 Los valores monetarios están en la unidad reportada por la fuente (la carátula indica la unidad de
-diligenciamiento; la Guía de planteamiento los trata como miles de pesos). No se deflactan en el panel.
+diligenciamiento; la Guía de planteamiento los trata como miles de pesos). No se deflactan en resumen_empresas.
 
 ## Archivos
 
@@ -17,10 +17,10 @@ diligenciamiento; la Guía de planteamiento los trata como miles de pesos). No s
 | `data/raw/balance_largo.parquet` | Conceptos del estado de situación financiera (formato largo) | `pfdp-zks5` |
 | `data/raw/resultados_largo.parquet` | Conceptos del estado de resultado integral (formato largo) | `prwj-nzxa` |
 | `data/raw/insolvencia/*.xlsx` | Cortes de la base de procesos de insolvencia en curso | Supersociedades |
-| `data/processed/panel_empresa_anio.parquet` | Panel con una fila por empresa-año | `src/build_panel.py` |
-| `data/processed/insolvencia_eventos.parquet` | Un registro por NIT con el año de apertura más temprano | `src/build_panel.py` |
+| `data/processed/resumen_empresas.parquet` | Resumen de empresas con una fila por empresa-año | `src/build_resumen_empresas.py` |
+| `data/processed/insolvencia_eventos.parquet` | Un registro por NIT con el año de apertura más temprano | `src/build_resumen_empresas.py` |
 
-## Reglas de construcción del panel
+## Reglas de construcción de la tabla resumen_empresas
 
 1. Se conservan solo los estados financieros con corte a 31 de diciembre y los puntos de entrada
    *Individual* o *Separado*, periodo actual.
@@ -41,7 +41,7 @@ diligenciamiento; la Guía de planteamiento los trata como miles de pesos). No s
 La base de insolvencia publica solo los procesos **en curso** en cada corte. Los procesos abiertos y
 terminados entre dos cortes no aparecen; por eso se descargan varios cortes y se toma la unión.
 
-## Variables del panel
+## Variables de resumen_empresas
 
 | Variable | Descripción |
 |---|---|
@@ -69,10 +69,10 @@ Una razón con denominador cero queda como valor faltante.
 | `data/raw/balance_largo.parquet` | 1.317.129 | 7 | 11,8 MB | Cortes 2016-2025 |
 | `data/raw/resultados_largo.parquet` | 690.597 | 7 | 6,6 MB | Cortes 2016-2025 |
 | `data/raw/insolvencia/*.xlsx` | 10 cortes (2.700 a 5.699 filas cada uno) | 14 a 19 | 4,5 MB | Dic. 2019 a oct. 2026 |
-| `data/processed/panel_empresa_anio.parquet` | 79.651 | 67 | 24,8 MB | Años fiscales 2016-2025 |
+| `data/processed/resumen_empresas.parquet` | 79.651 | 67 | 24,8 MB | Años fiscales 2016-2025 |
 | `data/processed/insolvencia_eventos.parquet` | 8.078 | 7 | 0,3 MB | Aperturas 1990-2026 |
 
-El panel tiene 12.516 empresas (10.381 en el universo principal CIIU 41, 43 y 68). Los cortes de insolvencia
+La tabla resumen_empresas tiene 12.516 empresas (10.381 en el universo principal CIIU 41, 43 y 68). Los cortes de insolvencia
 usados son 2019-12, 2020-03, 2020-06, 2020-09, 2021-12, 2022-12, 2023-12, 2024-12, 2025-12 y 2026-10.
 
 ## Calidad de los datos (resumen)
