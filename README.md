@@ -1,6 +1,6 @@
 # Alerta temprana de insolvencia de constructoras e inmobiliarias
 
-Proyecto del curso MIID-4304 Despliegue de Soluciones Analíticas (MIAD, Uniandes, 2026-15).
+Proyecto del curso Despliegue de Soluciones Analíticas - MIAD
 
 **Pregunta de negocio.** ¿Cómo puede un banco identificar, con al menos un año de anticipación y con una
 capacidad de revisión limitada, las constructoras e inmobiliarias que entrarán en un proceso de
@@ -51,6 +51,4 @@ python src/build_resumen_empresas.py         # tabla resumen_empresas con razone
 Detalle en `docs/diccionario_datos.md`.
 
 ## Equipo
-
-Ver el reporte de trabajo en equipo de la entrega. Cada integrante trabaja en su rama y fusiona con
-pull request.
+Diana Marcela, Miguel Ángel, Pablo y Camilo Ruiz
