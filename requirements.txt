@@ -1,0 +1,13 @@
+pandas
+pyarrow
+requests
+openpyxl
+scikit-learn
+statsmodels
+matplotlib
+seaborn
+jupyter
+ipykernel
+nbconvert
+dvc
+dvc-s3

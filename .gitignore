@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+.idea/
+.vscode/
+# credenciales y llaves: nunca van al repo
+*.pem
+*.key
+.env
+aws_credentials*
+# los datos viven en DVC (DVC agrega sus propias reglas en data/.gitignore)
