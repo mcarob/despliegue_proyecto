@@ -1,0 +1,5 @@
+[core]
+    remote = aws-remote
+['remote "aws-remote"']
+    url = s3://insolvencia-proyecto-despliegue/despliegue_proyecto
+    region = us-east-1
