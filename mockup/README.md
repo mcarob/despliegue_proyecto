@@ -2,7 +2,18 @@
 
 Tablero web para la **alerta temprana de insolvencia de constructoras e inmobiliarias**. El tablero consume la API
 del modelo (`POST /predict`, FastAPI) y muestra además información descriptiva del sector. La maqueta tiene cinco
-pantallas, diseñadas en Penpot (archivo fuente en este directorio) y exportadas como imágenes.
+pantallas de 1440 × 900, diseñadas en Penpot y exportadas como imágenes en `pantallas/`.
+
+```
+mockup/
+├── README.md                 este documento
+└── pantallas/
+    ├── 01_panorama_sector.png
+    ├── 02_lista_vigilancia.png
+    ├── 03_ficha_empresa.png
+    ├── 04_simulador_api.png
+    └── 05_salud_modelo.png
+```
 
 **Pregunta de negocio:** ¿cómo identificar, con al menos un año de anticipación y con capacidad de revisión limitada,
 las constructoras e inmobiliarias que entrarán en un proceso de insolvencia?
@@ -27,6 +38,47 @@ las constructoras e inmobiliarias que entrarán en un proceso de insolvencia?
 | 3 | **Ficha de empresa** | Probabilidad y banda, factores que más empujan el puntaje, evolución de las razones clave frente a la mediana del subsector y Z″ de Altman | Entender **por qué** una empresa está en la lista y qué pedirle en la revisión | Las razones que más separan son endeudamiento (mediana 0,72 frente a 0,35), efectivo sobre activos, Z″ de Altman, ROA y deuda financiera sobre activos |
 | 4 | **Simulador** | Formulario con las razones financieras de una empresa; el tablero llama a la API `/predict` y muestra la probabilidad, la banda y la versión del modelo | Evaluar una empresa nueva o un escenario (por ejemplo, más deuda) antes de aprobar o renovar un crédito | Es la integración tablero → API que exige el proyecto; los campos del formulario corresponden a las variables del modelo |
 | 5 | **Salud del modelo** | AUC, AUC-PR, Brier y lift al revisar el 10 %, comparados con las líneas base; frescura de los datos y versión del modelo | Confiar (o no) en la lista y saber cuándo reentrenar | La línea base es débil (Z″ de Altman AUC 0,68 y 16,7 % de eventos anticipados al revisar el 10 %; endeudamiento AUC 0,76), así que el modelo debe superarlas; la deriva temporal exige monitoreo |
+
+## Vista de cada pantalla
+
+### 1. Panorama del sector
+![Panorama del sector](pantallas/01_panorama_sector.png)
+
+### 2. Lista de vigilancia
+![Lista de vigilancia](pantallas/02_lista_vigilancia.png)
+
+### 3. Ficha de empresa
+![Ficha de empresa](pantallas/03_ficha_empresa.png)
+
+### 4. Simulador (conectado a la API del modelo)
+![Simulador](pantallas/04_simulador_api.png)
+
+El analista ingresa o ajusta las razones financieras de una empresa y pulsa **Calcular riesgo**. El tablero envía
+esas variables a la API y muestra lo que el modelo responde:
+
+| Lo que muestra | De dónde sale |
+|---|---|
+| Probabilidad de entrar en insolvencia a 1 y 2 años | Campos `prob_1a` y `prob_2a` de la respuesta de `/predict` |
+| Banda de riesgo (alta, media o baja) | Campo `banda`, según los cortes de la capacidad de revisión |
+| Veredicto: "entraría en la lista de vigilancia" | Campo `en_vigilancia`: la probabilidad supera el umbral del 10 % de revisión (`umbral`) |
+| Comparación con un escenario (por ejemplo, menos deuda) | Una segunda llamada a `/predict` con las variables modificadas |
+| Estado del servicio y versión del modelo | `GET /health` y campo `version` |
+
+Ejemplo de llamada (los nombres de las variables son los del panel: `lev`, `liq`, `efect`, `inv`, `ga`, `df`, `lA`,
+`pat`, `roa`, `margen_op`, `rot_act`, `carga_fin`):
+
+```json
+POST /predict
+{"inputs": [{"lev": 0.91, "liq": 0.82, "efect": 0.01, "df": 0.58, "roa": -0.12, "ciiu": "4111"}]}
+
+200 OK
+{"prob_1a": 0.21, "prob_2a": 0.38, "banda": "Alta", "en_vigilancia": true, "umbral": 0.15, "version": "1.0.0"}
+```
+
+La probabilidad no afirma que la empresa vaya a quebrar: sirve para priorizar a quién revisar primero.
+
+### 5. Salud del modelo
+![Salud del modelo](pantallas/05_salud_modelo.png)
 
 ## Flujo de uso
 
