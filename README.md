@@ -7,8 +7,9 @@ capacidad de revisión limitada, las constructoras e inmobiliarias que entrarán
 insolvencia, para actuar a tiempo y reducir la pérdida y la provisión de su cartera del sector?
 
 **Prototipo objetivo.** Modelos supervisados empaquetados, una API de inferencia y un tablero (lista de
-vigilancia y ficha de empresa), desplegados con contenedores Docker. Este repositorio corresponde a la
-Entrega 1 (semana 3): datos versionados con DVC, exploración de datos y maqueta.
+vigilancia y ficha de empresa), desplegados con contenedores Docker. Entrega 1 (semana 3): datos versionados
+con DVC, exploración de datos y maqueta. Entrega 2 (semana 5): modelos y experimentos en MLflow (ver
+`experiments/README.md`).
 
 ## Estructura
 
@@ -16,8 +17,9 @@ Entrega 1 (semana 3): datos versionados con DVC, exploración de datos y maqueta
 data/raw/            datos crudos (versionados con DVC, no con Git)
 data/processed/      resumen_empresas, una fila por empresa-año (versionado con DVC)
 src/                 scripts de extracción y construcción de la tabla resumen_empresas
-notebooks/           exploración de datos
-mockup/              maqueta del tablero (a cargo de otro integrante)
+notebooks/           exploración de datos (01) y de modelos (02)
+experiments/         entrenamiento de modelos con registro en MLflow
+mockup/              maqueta del tablero
 docs/                diccionario de datos y figuras
 ```
 
@@ -42,6 +44,9 @@ dvc pull                          # trae los datos versionados (requiere acceso 
 # o bien, regenerarlos desde las fuentes:
 python src/extract_niif.py        # estados financieros del sector (CIIU 41, 42, 43 y 68)
 python src/build_resumen_empresas.py         # tabla resumen_empresas con razones y variable objetivo
+# modelos (con el servidor de MLflow en la EC2):
+export MLFLOW_TRACKING_URI=http://<IP-de-la-EC2>:8050
+python experiments/entrenar_modelos.py --datos data/processed/resumen_empresas.csv
 ```
 
 ## Variable objetivo
