@@ -11,6 +11,7 @@ proceso de insolvencia. Las corridas se registran en el servidor de MLflow del p
 | `experiments/entrenar_modelos.py` | Entrena la línea base y los seis modelos, y registra en MLflow parámetros, métricas y el modelo de cada corrida |
 | `notebooks/02_modelos.ipynb` | Exploración: eventos por año, comparación, curvas ROC, precisión-exhaustividad y de captura, importancia de variables y calibración |
 | `docs/figuras/modelos_*.png` | Figuras del notebook para el reporte |
+| `docs/soportes/mlflow_experimentos.png` | Soporte: las 7 corridas del experimento `alerta-insolvencia` en el servidor de MLflow de la EC2 (IP visible) |
 
 ## Cómo correrlo
 
