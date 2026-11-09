@@ -52,7 +52,7 @@ def resumen(horizonte: int = 1, purga: bool = True) -> pd.DataFrame:
     for nombre, df in zip(("entrenamiento", "validación", "prueba"), particion(horizonte, purga)):
         filas.append({"horizonte": horizonte, "conjunto": nombre, "años": f"{df.anio.min()}-{df.anio.max()}",
                       "empresa-año": len(df), "empresas": df.nit.nunique(), "eventos": int(df.y.sum()),
-                      "prevalencia %": round(df.y.mean() * 100, 2)})z 
+                      "prevalencia %": round(df.y.mean() * 100, 2)})
     return pd.DataFrame(filas)
 
 
