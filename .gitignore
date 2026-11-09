@@ -10,3 +10,8 @@ __pycache__/
 .env
 aws_credentials*
 # los datos viven en DVC (DVC agrega sus propias reglas en data/.gitignore)
+
+# MLflow local de práctica (las corridas oficiales van al servidor de la EC2)
+mlflow.db
+mlruns/
+mlartifacts/
