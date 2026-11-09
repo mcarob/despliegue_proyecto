@@ -11,3 +11,4 @@ ipykernel
 nbconvert
 dvc
 dvc-s3
+mlflow==3.17.1
