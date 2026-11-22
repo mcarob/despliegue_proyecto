@@ -1,0 +1,7 @@
+# Paquete del modelo (trae el modelo entrenado, sus metadatos y la validación de entradas)
+./model-pkg/alerta_insolvencia-2.0.0-py3-none-any.whl
+# Servidor y API
+uvicorn>=0.30,<1.0
+fastapi>=0.115,<1.0
+pydantic-settings>=2.3,<3.0
+loguru>=0.7,<1.0
