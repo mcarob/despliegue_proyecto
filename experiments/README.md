@@ -58,3 +58,49 @@ siguiente. Con solo 66 eventos de prueba las diferencias pequeñas entre modelos
 probabilidades quedan infladas por `class_weight` (media de 0,08 en el random forest frente a una tasa real de
 0,003): sirven para ordenar el riesgo; para mostrarlas como probabilidad hay que calibrarlas. Las variables con más
 peso en el random forest son efectivo sobre activos, margen neto, endeudamiento y margen operacional.
+
+---
+
+# Iteración de la entrega final: ¿se puede mejorar el modelo?
+
+Script: `experiments/iteracion_entrega_final.py` (experimento de MLflow **`alerta-insolvencia-iteracion`**, 27 corridas).
+Resultados completos en `experiments/resultados_iteracion.json`; figuras `docs/figuras/modelos_04_calibracion.png` y
+`docs/figuras/modelos_05_iteracion.png`.
+
+**Qué se corrigió del método.** En la Entrega 2 los modelos se compararon directamente en la prueba 2022-2024, así que
+la prueba dejó de ser independiente. Ahora la elección se hace con **validación temporal móvil**: para 2019, 2020 y
+2021 se entrena con los años anteriores y se predice ese año (21.075 empresa-año, 94 eventos). La prueba se usa solo
+al final, para confirmar.
+
+| Qué se probó | Resultado en validación | Decisión |
+|---|---|---|
+| 8 modelos (random forest con hojas de 30, 50 y 100 o max_features 0,3; extra trees; gradient boosting regularizado con y sin balanceo; logística) | El random forest con hojas de 50 queda primero junto con el de hojas de 30 (AUC-PR 0,062; captura en el 10 % de 60 % frente a 59 %). Boosting, extra trees y logística quedan por debajo (AUC-PR de 0,026 a 0,045) | Se mantiene `random_forest_hoja50` |
+| 11 variables de tendencia (cambios frente al año anterior, crecimiento de activos e ingresos, edad, años reportados, pérdidas seguidas) y grupo NIIF | Suben un poco el AUC (0,826 a 0,840 en el mejor caso), pero bajan el AUC-PR y la captura en el 10 % | No se adoptan: más variables para la API sin ganancia en lo que usa el banco |
+| Etiqueta ampliada: entrenar con "insolvencia en 1 o 2 años" (más eventos), **con purga** del año que filtraría el futuro | Validación: AUC +0,024 (IC 95 % +0,008 a +0,042); captura +3 puntos (IC −4 a +10). **Prueba: AUC −0,012 (IC −0,023 a −0,001); captura −5 puntos** | No se adopta: la mejora no se sostiene fuera de tiempo |
+| Calibración de Platt (ajustada con las predicciones fuera de tiempo 2019-2021) | Prueba: Brier 0,0171 → **0,0029**, por debajo de predecir la tasa constante (0,0030). Eventos esperados 92 frente a 66 observados | **Se adopta:** la API entrega una probabilidad en la escala real |
+
+**Lección sobre la fuga de información.** Sin la purga, la etiqueta ampliada parecía subir la captura de 60 % a 69 %:
+la fila del año anterior quedaba marcada con un evento que todavía no se conocía al momento de predecir. Con la purga,
+la ganancia casi desaparece, y en la prueba se vuelve pérdida.
+
+**Modelo final (versión 2.0.0 del paquete, `model-pkg/`).** Es el random forest de la Entrega 2 más la calibración, con
+niveles de alerta: alto si está en el 10 % de mayor puntaje de 2025, medio si está en el 20 % siguiente.
+
+| Prueba 2022-2024 (66 eventos) | Modelo | IC 95 % | Z'' de Altman | Endeudamiento |
+|---|:---:|:---:|:---:|:---:|
+| AUC | **0,892** | 0,850-0,927 | 0,676 | 0,755 |
+| AUC-PR | **0,047** (15,7 veces la prevalencia) | 0,025-0,107 | 0,006 | 0,008 |
+| Captura al revisar el 5 %, 10 % y 20 % | 43,9 %, **66,7 %**, 83,3 % | 56,2 %-78,0 % (10 %) | 10,6 %, 18,2 %, 36,4 % | 12,1 %, 27,3 %, 53,0 % |
+| Precisión de la lista del 10 % | 2,0 % (6,7 veces la tasa) | | 0,5 % | 0,8 % |
+
+La validación móvil da un AUC más bajo que la prueba (0,826 frente a 0,892; por año: 0,816 en 2019, 0,818 en 2020 y
+0,849 en 2021). Los primeros pliegues entrenan con solo 3 o 4 años, y el AUC sube a medida que hay más historia. Con
+pocas decenas de eventos por periodo, el valor puntual varía bastante; por eso se reporta el intervalo de confianza.
+
+**Cómo reproducirlo**
+
+```bash
+export MLFLOW_TRACKING_URI=http://<IP-de-la-EC2>:8050     # o sqlite:///mlflow.db sin servidor
+python experiments/iteracion_entrega_final.py --datos data/processed/resumen_empresas.csv   # unos 5 minutos
+cd model-pkg && tox -e train       # entrena el paquete y registra la corrida paquete_v2.0.0_rf_calibrado
+```
