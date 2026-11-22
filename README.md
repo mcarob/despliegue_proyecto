@@ -10,6 +10,8 @@ insolvencia, para actuar a tiempo y reducir la pérdida y la provisión de su ca
 vigilancia y ficha de empresa), desplegados con contenedores Docker. Entrega 1 (semana 3): datos versionados
 con DVC, exploración de datos y maqueta. Entrega 2 (semana 5): modelos y experimentos en MLflow (ver
 `experiments/README.md`).
+Entrega final (semana 8): iteración de modelos con validación temporal, modelo empaquetado (`model-pkg/`),
+API de inferencia (`api/`) y despliegue con Docker.
 
 ## Estructura
 
@@ -19,6 +21,9 @@ data/processed/      resumen_empresas, una fila por empresa-año (versionado con
 src/                 scripts de extracción y construcción de la tabla resumen_empresas
 notebooks/           exploración de datos (01) y de modelos (02)
 experiments/         entrenamiento de modelos con registro en MLflow
+model-pkg/           paquete del modelo (alerta_insolvencia 2.0.0): entrenamiento, calibración, pruebas y .whl
+api/                 API FastAPI que sirve el paquete (/health, /predict, /modelo) y su Dockerfile
+dashboard/           tablero en Dash (cinco vistas)
 mockup/              maqueta del tablero
 docs/                diccionario de datos y figuras
 ```
@@ -47,6 +52,10 @@ python src/build_resumen_empresas.py         # tabla resumen_empresas con razone
 # modelos (con el servidor de MLflow en la EC2):
 export MLFLOW_TRACKING_URI=http://<IP-de-la-EC2>:8050
 python experiments/entrenar_modelos.py --datos data/processed/resumen_empresas.csv
+python experiments/iteracion_entrega_final.py   # iteración de la entrega final
+# paquete del modelo y API (requiere tox):
+cd model-pkg && tox -e train && tox -e build && cd ..
+cd api && tox -e test_app && docker build -t alerta-insolvencia-api:2.0.0 .
 ```
 
 ## Variable objetivo
