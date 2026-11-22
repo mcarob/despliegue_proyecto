@@ -1,0 +1,6 @@
+.tox/
+build/
+*.egg-info/
+.pytest_cache/
+# el .whl construido se publica en api/model-pkg/, que es donde lo instala la API
+dist/

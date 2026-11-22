@@ -1,0 +1,9 @@
+include README.md
+include requirements/*.txt
+include alerta_insolvencia/VERSION
+include alerta_insolvencia/config.yml
+include alerta_insolvencia/trained/*.joblib
+include alerta_insolvencia/trained/*.json
+include alerta_insolvencia/datasets/*.csv
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]

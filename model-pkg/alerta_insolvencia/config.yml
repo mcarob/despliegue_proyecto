@@ -1,0 +1,72 @@
+# Configuración del paquete del modelo de alerta temprana de insolvencia.
+# Todo lo que define cómo se entrena y se usa el modelo está aquí, no repartido en el código.
+
+# Nombre del paquete y archivos
+nombre_paquete: alerta-insolvencia
+archivo_modelo: modelo-insolvencia-v
+archivo_metadatos: metadatos-modelo-v
+# Tabla resumen_empresas (una fila por empresa-año). Se trae con `dvc pull` desde la raíz del repositorio;
+# la ruta se puede cambiar con la variable de entorno ALERTA_DATOS.
+datos_entrenamiento: ../data/processed/resumen_empresas.csv
+# Muestra pequeña y sin identificadores para las pruebas automáticas del paquete
+datos_prueba: muestra_prueba.csv
+
+# Variable objetivo: 1 si la empresa abre un proceso de insolvencia en el año siguiente al de sus estados
+objetivo: y_h1
+
+# Universo: construcción de edificios (41), actividades especializadas (43) e inmobiliarias (68)
+grupos_ciiu:
+  - "41"
+  - "43"
+  - "68"
+
+# Variables del modelo: 16 razones financieras, 2 indicadores y el subsector
+razones:
+  - liquidez_corriente
+  - endeudamiento
+  - apalancamiento
+  - deuda_fin_activos
+  - pasivo_corriente_pasivo
+  - capital_trabajo_activos
+  - roa
+  - roe
+  - margen_neto
+  - margen_operacional
+  - cobertura_intereses
+  - rotacion_activos
+  - efectivo_activos
+  - ganancias_acum_activos
+  - ln_activos
+  - altman_z2
+indicadores:
+  - patrimonio_negativo
+  - perdida_neta
+categoricas:
+  - ciiu_grupo
+
+# Partición temporal (nunca se mezclan años): validación móvil para elegir, prueba fuera de tiempo para reportar
+anio_inicio_entrenamiento: 2016
+anio_fin_entrenamiento: 2021
+anios_validacion:
+  - 2019
+  - 2020
+  - 2021
+anio_inicio_prueba: 2022
+anio_fin_prueba: 2024
+
+# Hiperparámetros del random forest ganador (corrida random_forest_hoja50 de la Entrega 2)
+n_estimators: 500
+min_samples_leaf: 50
+class_weight: balanced_subsample
+random_state: 42
+
+# Recorte de valores extremos (percentiles calculados con entrenamiento)
+recorte_inferior: 0.01
+recorte_superior: 0.99
+
+# Niveles de alerta: alto = el 10 % de mayor puntaje del año de referencia; medio = el 20 % siguiente
+fraccion_alerta_alta: 0.10
+fraccion_alerta_media: 0.20
+
+# Máximo de registros por llamada (protege la API de lotes enormes)
+max_registros_por_llamada: 5000

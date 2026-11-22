@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alerta-insolvencia"
+dynamic = ["version", "dependencies"]
+description = "Modelo de alerta temprana de insolvencia de constructoras e inmobiliarias (random forest calibrado)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "BSD-3-Clause"
+authors = [{ name = "Equipo del proyecto de Despliegue de Soluciones Analíticas, MIAD - Uniandes" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+
+[tool.setuptools.dynamic]
+version = { file = "alerta_insolvencia/VERSION" }
+dependencies = { file = "requirements/requirements.txt" }
+
+[tool.setuptools.packages.find]
+include = ["alerta_insolvencia*"]
+
+[tool.setuptools.package-data]
+# El paquete viaja con el modelo entrenado, sus metadatos, la configuración y la muestra de prueba
+alerta_insolvencia = ["VERSION", "config.yml", "trained/*.joblib", "trained/*.json", "datasets/*.csv"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-rfEX --strict-markers"
+testpaths = ["tests"]
+filterwarnings = ["error", "ignore::DeprecationWarning"]
+
+[tool.isort]
+profile = "black"
+line_length = 120

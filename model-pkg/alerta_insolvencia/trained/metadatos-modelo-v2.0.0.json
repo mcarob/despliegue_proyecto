@@ -1,0 +1,312 @@
+{
+  "modelo": "random_forest_hoja50 calibrado (Platt)",
+  "version": "2.0.0",
+  "fecha_entrenamiento": "2026-11-22",
+  "objetivo": "Apertura de un proceso de insolvencia en el año siguiente al de los estados financieros (y_h1)",
+  "variables": {
+    "razones": [
+      "liquidez_corriente",
+      "endeudamiento",
+      "apalancamiento",
+      "deuda_fin_activos",
+      "pasivo_corriente_pasivo",
+      "capital_trabajo_activos",
+      "roa",
+      "roe",
+      "margen_neto",
+      "margen_operacional",
+      "cobertura_intereses",
+      "rotacion_activos",
+      "efectivo_activos",
+      "ganancias_acum_activos",
+      "ln_activos",
+      "altman_z2"
+    ],
+    "indicadores": [
+      "patrimonio_negativo",
+      "perdida_neta"
+    ],
+    "categoricas": [
+      "ciiu_grupo"
+    ]
+  },
+  "datos": {
+    "universo": "CIIU 41, 43, 68",
+    "anios_entrenamiento": "2016-2021",
+    "anios_validacion": [
+      2019,
+      2020,
+      2021
+    ],
+    "anios_prueba": "2022-2024",
+    "filas_entrenamiento": 35810,
+    "eventos_entrenamiento": 171,
+    "filas_prueba": 21881,
+    "eventos_prueba": 66
+  },
+  "metricas_validacion": {
+    "auc": 0.8258135273352688,
+    "auc_pr": 0.06156281325819955,
+    "auc_pr_sobre_prevalencia": 13.8025137171974,
+    "captura_top5": 0.4148936170212766,
+    "captura_top10": 0.5957446808510638,
+    "captura_top20": 0.6702127659574468,
+    "precision_top10": 0.026565464895635674,
+    "prevalencia": 0.004460260972716489,
+    "captura_top10_por_anio": 0.5638297872340425,
+    "brier": 0.004331563476023693
+  },
+  "metricas_prueba": {
+    "auc": 0.8916953166781267,
+    "auc_pr": 0.04720555861791755,
+    "auc_pr_sobre_prevalencia": 15.650073153312938,
+    "captura_top5": 0.4393939393939394,
+    "captura_top10": 0.6666666666666666,
+    "captura_top20": 0.8333333333333334,
+    "precision_top10": 0.020100502512562814,
+    "prevalencia": 0.003016315524884603,
+    "captura_top10_por_anio": 0.6666666666666666,
+    "brier": 0.0029480480392872267
+  },
+  "intervalos_95_prueba": {
+    "auc": [
+      0.8498634072234079,
+      0.9266005854357607
+    ],
+    "auc_pr": [
+      0.024898268846525237,
+      0.10743524342689621
+    ],
+    "captura_top10": [
+      0.5616271299699299,
+      0.7796900394706292
+    ]
+  },
+  "brier_sin_calibrar": 0.01711624342681694,
+  "brier_tasa_constante": 0.003007217365538944,
+  "lineas_base_prueba": {
+    "altman_z2": {
+      "auc": 0.6761270740871932,
+      "auc_pr": 0.0057205952205704146,
+      "auc_pr_sobre_prevalencia": 1.8965506669894128,
+      "captura_top5": 0.10606060606060606,
+      "captura_top10": 0.18181818181818182,
+      "captura_top20": 0.36363636363636365,
+      "precision_top10": 0.00548195523069895,
+      "prevalencia": 0.003016315524884603
+    },
+    "endeudamiento": {
+      "auc": 0.755470589460963,
+      "auc_pr": 0.008209303036691488,
+      "auc_pr_sobre_prevalencia": 2.7216327234219158,
+      "captura_top5": 0.12121212121212122,
+      "captura_top10": 0.2727272727272727,
+      "captura_top20": 0.5303030303030303,
+      "precision_top10": 0.008222932846048425,
+      "prevalencia": 0.003016315524884603
+    }
+  },
+  "calibracion": {
+    "coeficiente": 1.1993618876291208,
+    "intercepto": -2.9399278429407096,
+    "metodo": "Platt sobre predicciones fuera de tiempo de 2019, 2020, 2021"
+  },
+  "tabla_calibracion_prueba": [
+    {
+      "decil": 1,
+      "empresas": 2189,
+      "eventos_observados": 0,
+      "eventos_esperados": 0.12
+    },
+    {
+      "decil": 2,
+      "empresas": 2188,
+      "eventos_observados": 1,
+      "eventos_esperados": 0.44
+    },
+    {
+      "decil": 3,
+      "empresas": 2188,
+      "eventos_observados": 0,
+      "eventos_esperados": 0.87
+    },
+    {
+      "decil": 4,
+      "empresas": 2188,
+      "eventos_observados": 0,
+      "eventos_esperados": 1.5
+    },
+    {
+      "decil": 5,
+      "empresas": 2188,
+      "eventos_observados": 2,
+      "eventos_esperados": 2.38
+    },
+    {
+      "decil": 6,
+      "empresas": 2188,
+      "eventos_observados": 0,
+      "eventos_esperados": 3.64
+    },
+    {
+      "decil": 7,
+      "empresas": 2188,
+      "eventos_observados": 2,
+      "eventos_esperados": 5.57
+    },
+    {
+      "decil": 8,
+      "empresas": 2188,
+      "eventos_observados": 6,
+      "eventos_esperados": 8.78
+    },
+    {
+      "decil": 9,
+      "empresas": 2188,
+      "eventos_observados": 11,
+      "eventos_esperados": 15.53
+    },
+    {
+      "decil": 10,
+      "empresas": 2188,
+      "eventos_observados": 44,
+      "eventos_esperados": 53.49
+    }
+  ],
+  "umbrales_alerta": {
+    "anio_referencia": 2025,
+    "alto": 0.18971045406011458,
+    "medio": 0.07841610895918093
+  },
+  "curva_captura_prueba": {
+    "revisadas": [
+      0.0,
+      0.02,
+      0.04,
+      0.06,
+      0.08,
+      0.1,
+      0.12,
+      0.14,
+      0.16,
+      0.18,
+      0.2,
+      0.22,
+      0.24,
+      0.26,
+      0.28,
+      0.3,
+      0.32,
+      0.34,
+      0.36,
+      0.38,
+      0.4,
+      0.42,
+      0.44,
+      0.46,
+      0.48,
+      0.5,
+      0.52,
+      0.54,
+      0.56,
+      0.58,
+      0.6,
+      0.62,
+      0.64,
+      0.66,
+      0.68,
+      0.7000000000000001,
+      0.72,
+      0.74,
+      0.76,
+      0.78,
+      0.8,
+      0.8200000000000001,
+      0.84,
+      0.86,
+      0.88,
+      0.9,
+      0.92,
+      0.9400000000000001,
+      0.96,
+      0.98,
+      1.0
+    ],
+    "capturados": [
+      0.0,
+      0.2878787878787879,
+      0.4090909090909091,
+      0.4696969696969697,
+      0.6212121212121212,
+      0.6666666666666666,
+      0.7424242424242424,
+      0.7575757575757576,
+      0.7878787878787878,
+      0.8181818181818182,
+      0.8333333333333334,
+      0.8333333333333334,
+      0.8484848484848485,
+      0.8636363636363636,
+      0.9242424242424242,
+      0.9242424242424242,
+      0.9242424242424242,
+      0.9242424242424242,
+      0.9393939393939394,
+      0.9545454545454546,
+      0.9545454545454546,
+      0.9545454545454546,
+      0.9545454545454546,
+      0.9545454545454546,
+      0.9545454545454546,
+      0.9545454545454546,
+      0.9696969696969697,
+      0.9696969696969697,
+      0.9696969696969697,
+      0.9696969696969697,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      0.9848484848484849,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "importancia": {
+    "efectivo_activos": 0.12563401930999127,
+    "margen_neto": 0.09771638453508641,
+    "endeudamiento": 0.07643014528930528,
+    "margen_operacional": 0.07368038671427904,
+    "ciiu_68": 0.06816946980091175,
+    "ln_activos": 0.06390855274981386,
+    "cobertura_intereses": 0.06156847465674807,
+    "roa": 0.0452528876387015,
+    "apalancamiento": 0.044886706976876564,
+    "pasivo_corriente_pasivo": 0.04373869230239114,
+    "altman_z2": 0.0423855036571423,
+    "ganancias_acum_activos": 0.041688218639790435,
+    "rotacion_activos": 0.03990428986930549,
+    "deuda_fin_activos": 0.03762664092235883,
+    "roe": 0.03700751927197894,
+    "liquidez_corriente": 0.036324745479114996,
+    "capital_trabajo_activos": 0.029359772743151193,
+    "perdida_neta": 0.016439480503911107,
+    "ciiu_43": 0.009811241686792253,
+    "ciiu_41": 0.0077026946151059145,
+    "patrimonio_negativo": 0.0007641726372438424
+  }
+}

@@ -1,0 +1,4 @@
+-r requirements.txt
+pyarrow>=15.0
+# Opcional: registrar la corrida en el servidor de MLflow (la misma versión del servidor de la EC2)
+mlflow==3.17.1
