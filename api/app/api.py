@@ -22,7 +22,12 @@ def health() -> dict:
     return estado.model_dump()
 
 
-@api_router.post("/predict", response_model=schemas.PredictionResults, status_code=200)
+@api_router.post(
+    "/predict",
+    response_model=schemas.PredictionResults,
+    status_code=200,
+    responses={400: {"description": "Lote vacío o de más de 5.000 empresas (el detalle dice cuántas llegaron)"}},
+)
 def predict(input_data: schemas.MultipleDataInputs) -> Any:
     """Puntaje de riesgo, probabilidad calibrada y nivel de alerta de cada empresa enviada."""
     datos = pd.DataFrame(jsonable_encoder(input_data.inputs))

@@ -27,12 +27,14 @@ el nivel de alerta de cada una.
 detalle de cada empresa, en el mismo orden de la entrada:
 
 ```json
-{"errors": null, "version": "2.0.0", "predictions": [0.2818],
- "resultados": [{"puntaje": 0.2818, "probabilidad": 0.0169, "nivel_alerta": "alto"}]}
+{"errors": null, "version": "2.0.0", "predictions": [0.3644],
+ "resultados": [{"puntaje": 0.3644, "probabilidad": 0.0264, "nivel_alerta": "alto"}]}
 ```
 
 Códigos de respuesta:
-- **422:** un campo no cumple el esquema (subsector fuera del universo, texto en una razón, indicador distinto de 0 y 1).
+- **422:** un campo no cumple el esquema: subsector ausente o fuera del universo, texto que no es un número en una
+  razón, `NaN` o infinito (JSON no los admite; un dato faltante va como `null`), indicador distinto de 0 y 1. La
+  respuesta dice qué campo de qué empresa falló.
 - **400:** el lote está vacío o pasa de 5.000 registros.
 
 ## Correr la API
@@ -47,7 +49,8 @@ curl http://localhost:8001/api/v1/health
 ```
 
 El contenedor corre con un usuario sin privilegios, expone el puerto 8001 (variable `PORT`) y trae una verificación
-de salud: `docker ps` lo muestra como `healthy` cuando responde. La imagen pesa unos 720 MB.
+de salud: `docker ps` lo muestra como `healthy` cuando responde. Con `docker stop` se cierra limpiamente (run.sh
+lanza uvicorn con `exec`). La imagen pesa unos 720 MB.
 
 **Sin Docker (desarrollo):**
 
@@ -58,8 +61,8 @@ uvicorn app.main:app --port 8001       # o: tox -e run
 ```
 
 **Pruebas:**
-- `tox -e test_app`: 7 pruebas sobre health, predicción, ejemplo de la documentación, errores 422 y 400, ficha del
-  modelo y página de inicio.
+- `tox -e test_app`: 8 pruebas sobre health, predicción, ejemplo de la documentación, errores 422 (incluidos `NaN` e
+  infinitos) y 400, ficha del modelo y página de inicio.
 - `tox -e checks`: revisa el estilo.
 
 ## Cómo la usa el tablero

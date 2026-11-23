@@ -5,11 +5,14 @@ Uso local (desde la carpeta api/):
 y abrir http://localhost:8001/docs para probar los servicios.
 """
 
+import math
 from typing import Any
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from loguru import logger
 
 from app.api import api_router
@@ -27,6 +30,23 @@ app = FastAPI(
     ),
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
+
+
+def _sin_no_finitos(valor: float) -> Any:
+    """JSON no admite NaN ni infinitos: dentro del mensaje de error se muestran como texto."""
+    return valor if math.isfinite(valor) else str(valor)
+
+
+@app.exception_handler(RequestValidationError)
+async def error_de_validacion(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Responde 422 con el detalle del campo que falló.
+
+    El manejador por defecto copia el valor recibido en la respuesta. Si llega un NaN o un infinito, ese valor no se
+    puede escribir como JSON y la API terminaría en un error 500 en vez de explicar qué campo está mal.
+    """
+    detalle = jsonable_encoder(exc.errors(), custom_encoder={float: _sin_no_finitos})
+    return JSONResponse(status_code=422, content={"detail": detalle})
+
 
 root_router = APIRouter()
 

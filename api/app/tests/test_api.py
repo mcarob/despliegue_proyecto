@@ -52,6 +52,15 @@ def test_subsector_invalido_responde_422(client: TestClient, test_data: pd.DataF
     assert respuesta.status_code == 422
 
 
+def test_nan_o_infinito_responde_422_y_no_500(client: TestClient) -> None:
+    # requests y httpx escriben NaN e Infinity tal cual; la API debe decir qué campo está mal, no fallar
+    for valor in ("NaN", "Infinity", "1e400"):
+        cuerpo = '{"inputs": [{"roa": %s, "ciiu_grupo": "41"}]}' % valor
+        respuesta = client.post(f"{URL}/predict", content=cuerpo, headers={"Content-Type": "application/json"})
+        assert respuesta.status_code == 422, valor
+        assert respuesta.json()["detail"][0]["loc"][-1] == "roa"
+
+
 def test_lote_vacio_responde_400(client: TestClient) -> None:
     respuesta = client.post(f"{URL}/predict", json={"inputs": []})
     assert respuesta.status_code == 400
