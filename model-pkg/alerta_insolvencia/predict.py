@@ -26,6 +26,9 @@ def make_prediction(*, input_data: t.Union[pd.DataFrame, dict, list]) -> dict:
       - niveles_alerta: "alto", "medio" o "bajo" según los umbrales del año de referencia;
       - version: versión del modelo; errors: None o la lista de errores de validación.
     """
+    if isinstance(input_data, dict) and not any(isinstance(v, (list, tuple, pd.Series)) for v in input_data.values()):
+        # Un solo registro {"roa": -0.06, "ciiu_grupo": "41", ...}: pandas no arma una tabla con puros escalares
+        input_data = [input_data]
     datos = pd.DataFrame(input_data)
     resultados = {"predictions": None, "probabilidades": None, "niveles_alerta": None,
                   "version": _version, "errors": None}

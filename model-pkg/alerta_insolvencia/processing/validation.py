@@ -59,12 +59,19 @@ def validate_inputs(*, input_data: pd.DataFrame) -> t.Tuple[pd.DataFrame, t.Opti
 
     Las columnas que no vengan se toman como faltantes; las que sobren se ignoran.
     """
+    repetidas = sorted(set(input_data.columns[input_data.columns.duplicated()].astype(str)))
+    if repetidas:
+        # Con dos columnas del mismo nombre no se sabe cuál usar: se rechaza en vez de escoger una al azar
+        return input_data, [{"type": "columnas_repetidas", "loc": ["inputs"],
+                             "msg": f"Columnas repetidas en la entrada: {', '.join(repetidas)}."}]
     datos = input_data.reindex(columns=MC.variables)
     errores = None
     try:
-        validados = MultipleDataInputs(
-            inputs=datos.astype(object).replace({np.nan: None}).to_dict(orient="records")
-        )
+        registros = datos.astype(object).replace({np.nan: None}).to_dict(orient="records")
+        # Los faltantes se quitan del registro: así una razón ausente toma su valor por defecto (se imputa) y un
+        # subsector ausente se informa como "campo obligatorio", igual que en la API
+        registros = [{k: v for k, v in r.items() if v is not None} for r in registros]
+        validados = MultipleDataInputs(inputs=registros)
         datos = pd.DataFrame([r.model_dump() for r in validados.inputs]).reindex(columns=MC.variables)
         datos[MC.razones + MC.indicadores] = datos[MC.razones + MC.indicadores].astype(float)
     except ValidationError as error:
