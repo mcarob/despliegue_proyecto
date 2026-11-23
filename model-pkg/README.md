@@ -18,12 +18,14 @@ make_prediction(input_data=[{"endeudamiento": 0.93, "roa": -0.06, "altman_z2": -
 | Salida | Qué es | Para qué sirve |
 |---|---|---|
 | `predictions` | Puntaje de riesgo de 0 a 1 del random forest | Ordenar a las empresas (lista de vigilancia del tablero) |
-| `probabilidades` | Probabilidad calibrada (Platt) de abrir insolvencia el año siguiente | Leer el riesgo en la escala real (la tasa del sector es 0,3 %) |
+| `probabilidades` | Probabilidad calibrada (Platt) de abrir insolvencia el año siguiente | Leer el riesgo en el orden de la tasa real (0,3 % al año en el sector); es aproximada, ver abajo |
 | `niveles_alerta` | `alto`, `medio` o `bajo` | Alto = dentro del 10 % de mayor puntaje de 2025; medio = el 20 % siguiente |
 
-Solo `ciiu_grupo` es obligatorio. Las razones que falten se imputan con la mediana de entrenamiento; un subsector
-fuera del universo, un texto en una razón, un infinito o un indicador distinto de 0 y 1 se rechazan con el detalle
-del error.
+Acepta una lista de registros, un solo registro (diccionario) o un `DataFrame`. Solo `ciiu_grupo` es obligatorio
+(`41`, `"41"` o el código completo, como `"4111"`). Las razones que falten (o vengan como `NaN`) se imputan con la
+mediana de entrenamiento. Se rechazan con el detalle del error: un subsector ausente o fuera del universo, un texto
+que no sea un número en una razón, un infinito, un indicador distinto de 0 y 1, columnas repetidas y lotes vacíos o
+de más de 5.000 registros.
 
 ## Modelo y resultados
 
@@ -33,8 +35,10 @@ del error.
   24 combinaciones de variables y modelos con validación temporal móvil (2019, 2020, 2021), sin tocar la prueba.
   Este modelo quedó entre los mejores, y ninguna alternativa lo superó de forma robusta.
 - **Calibración:** las probabilidades del bosque están infladas por el balanceo (media 0,08 frente a una tasa de
-  0,003). La calibración de Platt, ajustada con las predicciones fuera de tiempo de 2019-2021, las lleva a la
-  escala real.
+  0,003). La calibración de Platt, ajustada con las predicciones fuera de tiempo de 2019-2021, las lleva al orden de
+  la tasa real: en la prueba la media queda en 0,42 % frente a 0,30 % observado (92 eventos esperados y 66 reales).
+  Es una escala aproximada, porque la tasa del sector cambia de un año a otro (0,27 % a 0,76 % en 2019-2021); para
+  decidir a quién revisar se usan el puntaje y el nivel de alerta.
 
 | Prueba fuera de tiempo 2022-2024 (21.881 empresa-año, 66 eventos) | Valor | IC 95 % |
 |---|:---:|:---:|
@@ -64,7 +68,7 @@ model-pkg/
     evaluacion.py              métricas para clase rara (AUC, AUC-PR, captura, Brier, bootstrap)
     trained/                   modelo entrenado y metadatos de la versión
     datasets/muestra_prueba.csv  2.000 empresa-año de 2022-2024 sin identificadores (para las pruebas)
-  tests/                       13 pruebas: predicción, calidad mínima, calibración, niveles y validación
+  tests/                       16 pruebas: predicción, calidad mínima, calibración, niveles y validación
   tox.ini                      train, test_package, build y checks
 ```
 

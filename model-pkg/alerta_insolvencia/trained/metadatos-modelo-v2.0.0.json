@@ -1,7 +1,7 @@
 {
   "modelo": "random_forest_hoja50 calibrado (Platt)",
   "version": "2.0.0",
-  "fecha_entrenamiento": "2026-11-22",
+  "fecha_entrenamiento": "2026-11-23",
   "objetivo": "Apertura de un proceso de insolvencia en el año siguiente al de los estados financieros (y_h1)",
   "variables": {
     "razones": [
@@ -54,7 +54,7 @@
     "precision_top10": 0.026565464895635674,
     "prevalencia": 0.004460260972716489,
     "captura_top10_por_anio": 0.5638297872340425,
-    "brier": 0.004331563476023693
+    "brier": 0.004366899528627382
   },
   "metricas_prueba": {
     "auc": 0.8916953166781267,
@@ -107,8 +107,8 @@
     }
   },
   "calibracion": {
-    "coeficiente": 1.1993618876291208,
-    "intercepto": -2.9399278429407096,
+    "coeficiente": 1.1993618876291205,
+    "intercepto": -2.93992784294071,
     "metodo": "Platt sobre predicciones fuera de tiempo de 2019, 2020, 2021"
   },
   "tabla_calibracion_prueba": [
@@ -173,6 +173,28 @@
       "eventos_esperados": 53.49
     }
   ],
+  "calibracion_en_conjunto": {
+    "validacion_por_anio": {
+      "2019": {
+        "tasa_real": 0.007585139318885449,
+        "probabilidad_media": 0.003041843997713119
+      },
+      "2020": {
+        "tasa_real": 0.0027221995372260785,
+        "probabilidad_media": 0.006659874186335862
+      },
+      "2021": {
+        "tasa_real": 0.0034397358282883873,
+        "probabilidad_media": 0.004206445860075728
+      }
+    },
+    "prueba": {
+      "eventos_observados": 66,
+      "eventos_esperados": 92.31670349927,
+      "tasa_real": 0.003016315524884603,
+      "probabilidad_media": 0.004219034938954801
+    }
+  },
   "umbrales_alerta": {
     "anio_referencia": 2025,
     "alto": 0.18971045406011458,

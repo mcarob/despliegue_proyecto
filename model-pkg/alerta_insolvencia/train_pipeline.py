@@ -53,6 +53,18 @@ def validacion_movil(datos: pd.DataFrame):
     return np.concatenate(y), np.concatenate(puntaje), np.concatenate(anios)
 
 
+def calibracion_cruzada(y: np.ndarray, puntaje: np.ndarray, anios: np.ndarray) -> np.ndarray:
+    """Probabilidades de validación calibradas sin mirar su propio año: la calibración de cada año se ajusta
+    con los otros años de validación. Así el Brier de validación no sale optimista por evaluar la calibración
+    con los mismos datos con que se ajustó."""
+    probabilidad = np.empty(len(y))
+    for anio in np.unique(anios):
+        otros = anios != anio
+        coef = ajustar_platt(puntaje[otros], y[otros])
+        probabilidad[~otros] = calibrar(puntaje[~otros], **coef)
+    return probabilidad
+
+
 def tabla_calibracion(y: np.ndarray, probabilidad: np.ndarray, grupos: int = 10) -> list:
     """Eventos observados frente a esperados por decil de riesgo (decil 10 = mayor riesgo)."""
     decil = pd.qcut(pd.Series(probabilidad).rank(method="first"), grupos, labels=False) + 1
@@ -109,7 +121,12 @@ def run_training() -> dict:
     # 1. Validación móvil y calibración con predicciones fuera de tiempo
     y_val, p_val, anios_val = validacion_movil(datos)
     calib = ajustar_platt(p_val, y_val)
-    metricas_validacion = metricas(y_val, p_val, anios_val, calibrar(p_val, **calib))
+    p_val_cal = calibracion_cruzada(y_val, p_val, anios_val)
+    metricas_validacion = metricas(y_val, p_val, anios_val, p_val_cal)
+    # Tasa real frente a probabilidad media por año: muestra cuánto varía la tasa del sector de un año a otro
+    tasa_por_anio = {int(a): {"tasa_real": float(y_val[anios_val == a].mean()),
+                              "probabilidad_media": float(p_val_cal[anios_val == a].mean())}
+                     for a in np.unique(anios_val)}
 
     # 2. Modelo final y prueba fuera de tiempo
     modelo = construir_pipeline().fit(entrenamiento[MC.variables], entrenamiento[MC.objetivo])
@@ -162,6 +179,11 @@ def run_training() -> dict:
         "calibracion": {**calib, "metodo": "Platt sobre predicciones fuera de tiempo de "
                                            + ", ".join(map(str, MC.anios_validacion))},
         "tabla_calibracion_prueba": tabla_calibracion(y, probabilidad),
+        "calibracion_en_conjunto": {
+            "validacion_por_anio": tasa_por_anio,
+            "prueba": {"eventos_observados": int(y.sum()), "eventos_esperados": float(probabilidad.sum()),
+                       "tasa_real": float(y.mean()), "probabilidad_media": float(probabilidad.mean())},
+        },
         "umbrales_alerta": umbrales,
         "curva_captura_prueba": dict(zip(("revisadas", "capturados"), curva_captura(y, puntaje))),
         "importancia": importancia(modelo),
