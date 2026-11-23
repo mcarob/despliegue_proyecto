@@ -69,19 +69,20 @@ Resultados completos en `experiments/resultados_iteracion.json`; figuras `docs/f
 
 **Qué se corrigió del método.** En la Entrega 2 los modelos se compararon directamente en la prueba 2022-2024, así que
 la prueba dejó de ser independiente. Ahora la elección se hace con **validación temporal móvil**: para 2019, 2020 y
-2021 se entrena con los años anteriores y se predice ese año (21.075 empresa-año, 94 eventos). La prueba se usa solo
-al final, para confirmar.
+2021 se entrena con los años anteriores y se predice ese año (21.075 empresa-año, 94 eventos). Se decide con el AUC-PR
+y la captura en el 10 % de la validación, y una alternativa se adopta solo si mejora de forma robusta (intervalo del
+95 % por encima de cero). La prueba se reporta al final, como confirmación, y no cambia ninguna decisión.
 
 | Qué se probó | Resultado en validación | Decisión |
 |---|---|---|
-| 8 modelos (random forest con hojas de 30, 50 y 100 o max_features 0,3; extra trees; gradient boosting regularizado con y sin balanceo; logística) | El random forest con hojas de 50 queda primero junto con el de hojas de 30 (AUC-PR 0,062; captura en el 10 % de 60 % frente a 59 %). Boosting, extra trees y logística quedan por debajo (AUC-PR de 0,026 a 0,045) | Se mantiene `random_forest_hoja50` |
+| 8 modelos (random forest con hojas de 30, 50 y 100 o max_features 0,3; extra trees; gradient boosting regularizado con y sin balanceo; logística) | El random forest con hojas de 50 queda primero junto con el de hojas de 30 (AUC-PR 0,062; captura en el 10 % de 60 % frente a 59 %). Con el corte del 10 % dentro de cada año, como revisaría el banco, los mejores random forest quedan entre 55 % y 57 %, a un evento de distancia (de 94). Boosting, extra trees y logística quedan por debajo (AUC-PR de 0,026 a 0,045) | Se mantiene `random_forest_hoja50`: ninguna alternativa lo supera de forma robusta |
 | 11 variables de tendencia (cambios frente al año anterior, crecimiento de activos e ingresos, edad, años reportados, pérdidas seguidas) y grupo NIIF | Suben un poco el AUC (0,826 a 0,840 en el mejor caso), pero bajan el AUC-PR y la captura en el 10 % | No se adoptan: más variables para la API sin ganancia en lo que usa el banco |
-| Etiqueta ampliada: entrenar con "insolvencia en 1 o 2 años" (más eventos), **con purga** del año que filtraría el futuro | Validación: AUC +0,024 (IC 95 % +0,008 a +0,042); captura +3 puntos (IC −4 a +10). **Prueba: AUC −0,012 (IC −0,023 a −0,001); captura −5 puntos** | No se adopta: la mejora no se sostiene fuera de tiempo |
-| Calibración de Platt (ajustada con las predicciones fuera de tiempo 2019-2021) | Prueba: Brier 0,0171 → **0,0029**, por debajo de predecir la tasa constante (0,0030). Eventos esperados 92 frente a 66 observados | **Se adopta:** la API entrega una probabilidad en la escala real |
+| Etiqueta ampliada: entrenar con "insolvencia en 1 o 2 años" (más eventos), **con purga** del año que filtraría el futuro | En las métricas con que se decide no hay mejora robusta: AUC-PR −0,006 (IC 95 % −0,026 a +0,011) y captura +3 puntos (IC −4 a +10). Solo sube el AUC (+0,024, IC +0,008 a +0,042) | No se adopta. La prueba lo confirma después: AUC −0,012 (IC −0,023 a −0,001) y captura −5 puntos |
+| Calibración de Platt (ajustada con las predicciones fuera de tiempo 2019-2021) | Validación, calibrando cada año con los otros dos: Brier 0,0044 frente a 0,0044 de la tasa constante. Prueba: Brier 0,0171 → **0,0029** (tasa constante 0,0030); 92 eventos esperados frente a 66 observados | **Se adopta:** la probabilidad pasa de una media de 8 % a 0,4 %, el orden de la tasa real (0,3 %). Es una escala aproximada: la tasa del sector cambia de un año a otro (0,27 % a 0,76 % en 2019-2021) y la calibración no puede anticipar ese cambio |
 
 **Lección sobre la fuga de información.** Sin la purga, la etiqueta ampliada parecía subir la captura de 60 % a 69 %:
 la fila del año anterior quedaba marcada con un evento que todavía no se conocía al momento de predecir. Con la purga,
-la ganancia casi desaparece, y en la prueba se vuelve pérdida.
+la ganancia en las métricas de decisión desaparece.
 
 **Modelo final (versión 2.0.0 del paquete, `model-pkg/`).** Es el random forest de la Entrega 2 más la calibración, con
 niveles de alerta: alto si está en el 10 % de mayor puntaje de 2025, medio si está en el 20 % siguiente.

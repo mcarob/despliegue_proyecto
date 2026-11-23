@@ -2,7 +2,9 @@
 
 Corrige una debilidad de la Entrega 2 (los modelos se compararon directamente en la prueba 2022-2024) y prueba
 mejoras con una validación temporal móvil: para 2019, 2020 y 2021 se entrena con los años anteriores y se predice
-ese año. La prueba 2022-2024 solo se usa al final, para confirmar las dos alternativas finalistas.
+ese año. Las decisiones se toman con la validación, mirando el AUC-PR y la captura en el 10 % (las métricas de la
+clase rara y del negocio): una alternativa se adopta solo si mejora de forma robusta (intervalo del 95 % por encima de
+cero). La prueba 2022-2024 solo se reporta al final, como confirmación; no cambia ninguna decisión.
 
 Qué se prueba (cada combinación es una corrida en MLflow, experimento `alerta-insolvencia-iteracion`):
   - Variables: las 19 de la Entrega 2 (base); más 11 de tendencia (cambios frente al año anterior, crecimiento,
@@ -188,8 +190,9 @@ def main():
                 mlflow.log_params({"conjunto_variables": conjunto, "n_variables": len(num) + len(INDICADORES)
                                    + len(cat), "modelo": nombre, "objetivo_entrenamiento": "y_h1", **comunes})
                 mlflow.log_metrics({f"validacion_{k}": v for k, v in m.items()})
+            # captura_top10_por_anio: el corte del 10 % se toma dentro de cada año, como revisaría el banco
             tabla.append({"corrida": f"{conjunto}__{nombre}", **{k: m[k] for k in
-                          ("auc", "auc_pr", "captura_top10", "captura_top20")}})
+                          ("auc", "auc_pr", "captura_top10", "captura_top10_por_anio", "captura_top20")}})
             print(f"{conjunto:15} {nombre:32} AUC {m['auc']:.3f}  AUC-PR {m['auc_pr']:.3f}  "
                   f"captura10 {m['captura_top10']:.1%}", flush=True)
 
