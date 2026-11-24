@@ -1,36 +1,27 @@
-"""Modelo que usa el tablero: el random forest ganador de la Entrega 2 (random_forest_hoja50).
+"""Conexión del tablero con la API de inferencia (api/ del repositorio).
 
-Se entrena con la misma configuración de experiments/entrenar_modelos.py (mismas variables, preprocesamiento,
-hiperparámetros y semilla), así el tablero no depende de que la EC2 con MLflow esté encendida.
-En la entrega final esta parte se reemplaza por el paquete del modelo servido por la API (POST /predict):
-basta con cambiar la función calcular_riesgo().
+El tablero no tiene el modelo: le envía las razones financieras a la API (POST /api/v1/predict) y recibe el
+puntaje de riesgo, la probabilidad calibrada y el nivel de alerta de cada empresa. La ficha del modelo (métricas,
+umbrales, curva de captura e importancia de variables) la trae de GET /api/v1/modelo.
+
+La dirección de la API se indica con la variable de entorno API_URL (por defecto http://localhost:8001).
 """
 
 import json
-import pathlib
+import os
+import time
 
-import joblib
 import numpy as np
 import pandas as pd
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.impute import SimpleImputer
-from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+import requests
 
 from datos import CARPETA_TABLERO, cargar_datos
-from transformaciones import RecorteExtremos
+
+API_URL = os.environ.get("API_URL", "http://localhost:8001").rstrip("/")
+LOTE = 5000  # la API acepta hasta 5.000 empresas por llamada
 
 CARPETA_ARTEFACTOS = CARPETA_TABLERO / "artefactos"
-RUTA_MODELO = CARPETA_ARTEFACTOS / "modelo_rf.joblib"
-RUTA_PUNTAJES = CARPETA_ARTEFACTOS / "puntajes.csv"
-RUTA_METRICAS = CARPETA_ARTEFACTOS / "metricas.json"
-
-NOMBRE_MODELO = "random_forest_hoja50"
-VERSION_MODELO = "v1.0"
-ANIOS_ENTRENAMIENTO = range(2016, 2022)  # 2016-2021, igual que experiments/entrenar_modelos.py
-ANIOS_PRUEBA = range(2022, 2025)  # 2022-2024
+RUTA_FICHA = CARPETA_ARTEFACTOS / "ficha_modelo.json"
 
 RAZONES = [
     "liquidez_corriente", "endeudamiento", "apalancamiento", "deuda_fin_activos",
@@ -39,8 +30,8 @@ RAZONES = [
     "ganancias_acum_activos", "ln_activos", "altman_z2",
 ]
 INDICADORES = ["patrimonio_negativo", "perdida_neta"]
-CATEGORICAS = ["ciiu_grupo"]
-VARIABLES = RAZONES + INDICADORES + CATEGORICAS
+VARIABLES = RAZONES + INDICADORES + ["ciiu_grupo"]
+ANIOS_ENTRENAMIENTO = range(2016, 2022)
 
 # Nombres para mostrar en el tablero
 ETIQUETAS = {
@@ -52,43 +43,81 @@ ETIQUETAS = {
     "efectivo_activos": "Efectivo / activos", "ganancias_acum_activos": "Ganancias acumuladas / activos",
     "ln_activos": "Tamaño (log de activos)", "altman_z2": "Z'' de Altman",
     "patrimonio_negativo": "Patrimonio negativo", "perdida_neta": "Pérdida neta",
+    "ciiu_41": "Subsector 41", "ciiu_43": "Subsector 43", "ciiu_68": "Subsector 68",
 }
 
 
-def crear_modelo():
-    """Pipeline idéntico a la corrida random_forest_hoja50 registrada en MLflow."""
-    preprocesar = ColumnTransformer([
-        ("razones", Pipeline([("recorte", RecorteExtremos()), ("imputar", SimpleImputer(strategy="median"))]),
-         RAZONES),
-        ("indicadores", SimpleImputer(strategy="most_frequent"), INDICADORES),
-        ("ciiu", OneHotEncoder(handle_unknown="ignore"), CATEGORICAS),
-    ])
-    bosque = RandomForestClassifier(n_estimators=500, min_samples_leaf=50, class_weight="balanced_subsample",
-                                    n_jobs=-1, random_state=42)
-    return Pipeline([("preprocesar", preprocesar), ("modelo", bosque)])
+# ---------------------------------------------------------------------------------------------------------
+# Llamadas a la API
+# ---------------------------------------------------------------------------------------------------------
+def esperar_api(intentos=60, pausa=5):
+    """Espera a que la API responda en /health (útil cuando los dos contenedores arrancan al tiempo)."""
+    for i in range(intentos):
+        try:
+            r = requests.get(f"{API_URL}/api/v1/health", timeout=5)
+            if r.ok:
+                return r.json()
+        except requests.RequestException:
+            pass
+        print(f"Esperando la API en {API_URL} ({i + 1}/{intentos})...")
+        time.sleep(pausa)
+    raise RuntimeError(f"La API no responde en {API_URL}. Revise que esté encendida y la variable API_URL.")
 
 
-def captura(y, puntaje, fraccion=0.10):
-    corte = np.quantile(puntaje, 1 - fraccion)
-    return y[puntaje >= corte].sum() / y.sum()
+def _limpiar(registros):
+    """Prepara los registros para JSON: los faltantes (NaN) van como null y los indicadores como enteros."""
+    limpios = []
+    for r in registros:
+        fila = {}
+        for v in VARIABLES:
+            x = r.get(v)
+            if v == "ciiu_grupo":
+                fila[v] = str(x)[:2]
+            elif x is None or (isinstance(x, float) and not np.isfinite(x)):
+                fila[v] = None
+            elif v in INDICADORES:
+                fila[v] = int(x)
+            else:
+                fila[v] = float(x)
+        limpios.append(fila)
+    return limpios
 
 
-def curva_captura(y, puntaje, pasos=50):
-    orden = np.argsort(-puntaje)
-    acumulado = np.cumsum(y[orden]) / y.sum()
-    x = np.linspace(0, 1, pasos + 1)
-    idx = np.clip((x * len(y)).astype(int) - 1, 0, len(y) - 1)
-    return [0.0] + list(x[1:]), [0.0] + list(acumulado[idx[1:]])
+def predecir(registros):
+    """Envía las empresas a la API en lotes y devuelve un DataFrame con puntaje, probabilidad y nivel de alerta,
+    en el mismo orden de la entrada."""
+    registros = _limpiar(registros)
+    partes = []
+    for i in range(0, len(registros), LOTE):
+        r = requests.post(f"{API_URL}/api/v1/predict", json={"inputs": registros[i:i + LOTE]}, timeout=120)
+        r.raise_for_status()
+        partes.extend(r.json()["resultados"])
+    return pd.DataFrame(partes, columns=["puntaje", "probabilidad", "nivel_alerta"])
 
 
-def metricas(y, puntaje):
-    return {
-        "auc": float(roc_auc_score(y, puntaje)),
-        "auc_pr": float(average_precision_score(y, puntaje)),
-        "captura_top10": float(captura(y, puntaje)),
-    }
+def calcular_riesgo(registros):
+    """Puntaje de riesgo (0 a 1) de cada empresa, calculado por la API."""
+    return predecir(registros)["puntaje"].to_numpy()
 
 
+def llamada_api(registros):
+    """Hace una llamada a /predict y devuelve la entrada y la respuesta tal como viajan (para mostrarlas en el
+    simulador)."""
+    entrada = {"inputs": _limpiar(registros)}
+    r = requests.post(f"{API_URL}/api/v1/predict", json=entrada, timeout=60)
+    r.raise_for_status()
+    return entrada, r.json()
+
+
+def ficha_modelo():
+    r = requests.get(f"{API_URL}/api/v1/modelo", timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Preparación al iniciar: puntajes de todas las empresas-año y métricas para la vista de salud
+# ---------------------------------------------------------------------------------------------------------
 def psi(referencia, actual, cortes=10):
     """Índice de estabilidad poblacional (deriva) de una variable entre entrenamiento y un año reciente."""
     referencia, actual = referencia.dropna(), actual.dropna()
@@ -102,82 +131,59 @@ def psi(referencia, actual, cortes=10):
     return float(np.sum((q - p) * np.log(q / p)))
 
 
-def preparar(forzar=False):
-    """Entrena el modelo, calcula el puntaje de todas las empresas-año y las métricas. Se ejecuta una sola vez."""
-    if not forzar and RUTA_MODELO.exists() and RUTA_PUNTAJES.exists() and RUTA_METRICAS.exists():
+def curva_captura(y, puntaje, pasos=50):
+    orden = np.argsort(-puntaje)
+    acumulado = np.cumsum(y[orden]) / y.sum()
+    x = np.linspace(0, 1, pasos + 1)
+    idx = np.clip((x * len(y)).astype(int) - 1, 0, len(y) - 1)
+    return [0.0] + list(x[1:]), [0.0] + list(acumulado[idx[1:]])
+
+
+def preparar():
+    """Pide a la API el puntaje de todas las empresas-año y guarda la ficha del modelo. Se repite solo si cambia
+    la versión del modelo que sirve la API."""
+    estado = esperar_api()
+    version = estado["model_version"]
+    ruta_puntajes = CARPETA_ARTEFACTOS / f"puntajes_modelo_{version}.csv"
+    if ruta_puntajes.exists() and RUTA_FICHA.exists():
         return
     CARPETA_ARTEFACTOS.mkdir(exist_ok=True)
-    print("Entrenando el modelo del tablero (solo la primera vez, tarda menos de un minuto)...")
+    print(f"Calculando puntajes con la API (modelo {version}); solo la primera vez...")
+
     d = cargar_datos()
-    modelable = d[(d["post_evento"] == 0)]
-    entrenamiento = modelable[modelable["anio"].isin(ANIOS_ENTRENAMIENTO) & (modelable["h1_valido"] == 1)]
-    prueba = modelable[modelable["anio"].isin(ANIOS_PRUEBA) & (modelable["h1_valido"] == 1)]
+    modelable = d[d["post_evento"] == 0]
+    resultado = predecir(modelable[VARIABLES].to_dict("records"))
+    puntajes = modelable[["nit", "anio"]].reset_index(drop=True).join(resultado)
+    puntajes.to_csv(ruta_puntajes, index=False)
 
-    modelo = crear_modelo()
-    modelo.fit(entrenamiento[VARIABLES], entrenamiento["y_h1"].to_numpy())
-    joblib.dump(modelo, RUTA_MODELO)
-
-    # Puntaje de todas las empresas-año del universo (incluye 2025, el año más reciente, sin etiqueta todavía)
-    puntajes = modelable[["nit", "anio"]].copy()
-    puntajes["puntaje"] = modelo.predict_proba(modelable[VARIABLES])[:, 1]
-    puntajes.to_csv(RUTA_PUNTAJES, index=False)
-
-    # Métricas en la prueba fuera de tiempo (2022-2024) frente a las líneas base de la Entrega 1
-    y = prueba["y_h1"].to_numpy()
-    p_modelo = modelo.predict_proba(prueba[VARIABLES])[:, 1]
-    p_altman = -prueba["altman_z2"].fillna(prueba["altman_z2"].median()).to_numpy()
-    p_endeud = prueba["endeudamiento"].fillna(prueba["endeudamiento"].median()).to_numpy()
-    resultado = {
-        "modelo": NOMBRE_MODELO, "version": VERSION_MODELO,
-        "entrenamiento": "2016-2021", "prueba": "2022-2024",
-        "filas_entrenamiento": int(len(entrenamiento)), "eventos_entrenamiento": int(entrenamiento["y_h1"].sum()),
-        "filas_prueba": int(len(prueba)), "eventos_prueba": int(y.sum()),
-        "prevalencia_prueba": float(y.mean()),
-        "comparacion": {
-            "Z'' de Altman (línea base)": metricas(y, p_altman),
-            "Endeudamiento (línea base)": metricas(y, p_endeud),
-            f"Modelo {VERSION_MODELO} (random forest)": metricas(y, p_modelo),
-        },
-        "brier": float(brier_score_loss(y, p_modelo)),
-        "curvas": {
-            "Modelo": curva_captura(y, p_modelo),
-            "Z'' de Altman": curva_captura(y, p_altman),
-        },
-        "importancia": dict(zip(
-            RAZONES + INDICADORES + [f"ciiu_{c}" for c in
-                                     modelo.named_steps["preprocesar"].named_transformers_["ciiu"].categories_[0]],
-            map(float, modelo.named_steps["modelo"].feature_importances_))),
-    }
+    ficha = ficha_modelo()
+    # Curva de captura del Z'' de Altman en la misma prueba, para compararla con la del modelo
+    prueba = modelable[modelable["anio"].between(2022, 2024) & (modelable["h1_valido"] == 1)]
+    altman = -prueba["altman_z2"].fillna(prueba["altman_z2"].median()).to_numpy()
+    ficha["curva_altman_prueba"] = curva_captura(prueba["y_h1"].to_numpy(), altman)
+    entrenamiento = modelable[modelable["anio"].isin(ANIOS_ENTRENAMIENTO)]
     ultimo = int(modelable["anio"].max())
-    resultado["psi_anio"] = ultimo
-    resultado["psi"] = {v: psi(entrenamiento[v], modelable.loc[modelable["anio"] == ultimo, v])
-                        for v in ["endeudamiento", "liquidez_corriente", "efectivo_activos", "deuda_fin_activos",
-                                  "roa", "margen_operacional"]}
-    RUTA_METRICAS.write_text(json.dumps(resultado, ensure_ascii=False, indent=2), encoding="utf-8")
-    m = resultado["comparacion"][f"Modelo {VERSION_MODELO} (random forest)"]
-    print(f"Listo. Prueba 2022-2024: AUC {m['auc']:.3f}, captura en el 10 % {m['captura_top10']:.1%}")
+    ficha["psi_anio"] = ultimo
+    ficha["psi"] = {v: psi(entrenamiento[v], modelable.loc[modelable["anio"] == ultimo, v])
+                    for v in ["endeudamiento", "liquidez_corriente", "efectivo_activos", "deuda_fin_activos",
+                              "roa", "margen_operacional"]}
+    RUTA_FICHA.write_text(json.dumps(ficha, ensure_ascii=False, indent=2), encoding="utf-8")
+    m = ficha["metricas_prueba"]
+    print(f"Listo. Modelo {version}: AUC {m['auc']:.3f}, captura en el 10 % {m['captura_top10']:.1%}")
 
 
-_modelo = None
+def cargar_puntajes():
+    version = esperar_api()["model_version"]
+    return pd.read_csv(CARPETA_ARTEFACTOS / f"puntajes_modelo_{version}.csv")
 
 
-def calcular_riesgo(registros):
-    """Puntaje de riesgo para una o varias empresas (lista de diccionarios con las variables del modelo).
-
-    Hoy usa el modelo cargado en memoria. En la entrega final esta función hará POST /predict a la API
-    con el mismo formato de entrada: {"inputs": registros}.
-    """
-    global _modelo
-    if _modelo is None:
-        _modelo = joblib.load(RUTA_MODELO)
-    X = pd.DataFrame(registros).reindex(columns=VARIABLES)
-    X[RAZONES + INDICADORES] = X[RAZONES + INDICADORES].astype(float)
-    return _modelo.predict_proba(X)[:, 1]
+def cargar_metricas():
+    return json.loads(RUTA_FICHA.read_text(encoding="utf-8"))
 
 
 def explicar(fila, medianas):
-    """Aporte aproximado de cada variable: cuánto baja o sube el puntaje si esa variable tomara
-    el valor mediano de su subsector (las demás quedan iguales). Positivo = la variable aumenta el riesgo."""
+    """Aporte aproximado de cada variable: cuánto baja o sube el puntaje si esa variable tomara el valor mediano
+    de su subsector (las demás quedan iguales). Positivo = la variable aumenta el riesgo."""
     base = fila[VARIABLES].to_dict()
     variantes = [base]
     for v in RAZONES:
@@ -186,11 +192,3 @@ def explicar(fila, medianas):
         variantes.append(alterna)
     p = calcular_riesgo(variantes)
     return pd.Series(p[0] - p[1:], index=RAZONES).sort_values(key=abs, ascending=False)
-
-
-def cargar_metricas():
-    return json.loads(RUTA_METRICAS.read_text(encoding="utf-8"))
-
-
-if __name__ == "__main__":
-    preparar(forzar=True)

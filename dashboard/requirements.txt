@@ -1,7 +1,8 @@
-dash>=2.17
-plotly>=5.20
-pandas>=2.0
-pyarrow
-numpy
-scikit-learn>=1.4
-joblib
+# Tablero en Dash: no lleva el modelo, le pide las predicciones a la API
+dash>=2.17,<4.0
+plotly>=5.20,<7.0
+pandas>=2.0,<3.0
+pyarrow>=14
+numpy>=1.26,<3.0
+requests>=2.31,<3.0
+gunicorn>=22.0,<24.0
