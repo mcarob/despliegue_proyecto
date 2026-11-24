@@ -1,12 +1,13 @@
-"""Tablero de alerta temprana de insolvencia de constructoras e inmobiliarias (Entrega 2).
+"""Tablero de alerta temprana de insolvencia de constructoras e inmobiliarias (entrega final).
 
 Cinco vistas, según la maqueta (mockup/): panorama del sector, lista de vigilancia, ficha de empresa,
-simulador y salud del modelo.
+simulador y salud del modelo. El tablero no tiene el modelo: todas las predicciones las pide a la API de
+inferencia (api/), cuya dirección se indica con la variable de entorno API_URL.
 
-Uso (desde la raíz del repositorio):
+Uso local (desde la raíz del repositorio, con la API encendida):
     pip install -r dashboard/requirements.txt
     python dashboard/app.py
-y abrir http://127.0.0.1:8050 en el navegador.
+y abrir http://127.0.0.1:8050 en el navegador. En Docker se ejecuta con gunicorn (ver dashboard/Dockerfile).
 """
 
 import json
@@ -21,15 +22,16 @@ import modelo as M
 from datos import SUBSECTORES, cargar_datos
 
 # ---------------------------------------------------------------------------------------------------------
-# Datos y modelo (se cargan una vez al iniciar)
+# Datos y puntajes (los puntajes los calcula la API una vez al iniciar)
 # ---------------------------------------------------------------------------------------------------------
 M.preparar()
 DATOS = cargar_datos()
-PUNTAJES = pd.read_csv(M.RUTA_PUNTAJES)
+PUNTAJES = M.cargar_puntajes()
 METRICAS = M.cargar_metricas()
 
 BASE = DATOS[DATOS["post_evento"] == 0].merge(PUNTAJES, on=["nit", "anio"], how="inner")
 BASE["puntaje100"] = BASE["puntaje"] * 100
+BASE["prob100"] = BASE["probabilidad"] * 100
 ANIOS = sorted(BASE["anio"].unique())
 ANIO_DEFECTO = 2024 if 2024 in ANIOS else ANIOS[-1]
 DEPARTAMENTOS = sorted(BASE["departamento"].unique())
@@ -122,6 +124,7 @@ VISTAS = [("/", "1. Panorama del sector"), ("/lista", "2. Lista de vigilancia"),
           ("/simulador", "4. Simulador"), ("/salud", "5. Salud del modelo")]
 
 app = Dash(__name__, suppress_callback_exceptions=True, title="Alerta temprana de insolvencia")
+server = app.server  # servidor web que usa gunicorn en Docker
 
 app.layout = html.Div(className="contenedor", children=[
     dcc.Location(id="url"),
@@ -131,7 +134,7 @@ app.layout = html.Div(className="contenedor", children=[
         html.Div("Insolvencia de constructoras e inmobiliarias", className="sub"),
         html.Div(id="menu"),
         html.Div(className="pie", children=[
-            f"Modelo {METRICAS['version']} · {METRICAS['modelo']}", html.Br(),
+            f"Modelo {METRICAS['version']}: {METRICAS['modelo']}", html.Br(), "Predicciones vía API", html.Br(),
             "Datos: NIIF Supersociedades", html.Br(), f"Años {ANIOS[0]}-{ANIOS[-1]}"]),
     ]),
     html.Div(className="principal", children=[
@@ -271,7 +274,7 @@ def vista_lista(anio, subs, depto, cap):
     tabla = pd.DataFrame({
         "#": revisar["puesto"], "Empresa": revisar["codigo"], "Subsector": revisar["subsector"],
         "Departamento": revisar["departamento"], "Puntaje": revisar["puntaje100"].round(1),
-        "Banda": revisar["banda"],
+        "Prob. (%)": revisar["prob100"].round(2), "Banda": revisar["banda"],
         "Cambio": revisar["cambio"].map(lambda c: "Nueva" if pd.isna(c) else f"{c:+.1f} pts"),
         "Factor principal": np.where(revisar["sin_reporte"], "Sin reporte reciente", revisar["factor"]),
         "Último reporte": revisar["anio"].astype(int),
@@ -303,8 +306,9 @@ def vista_lista(anio, subs, depto, cap):
                     {"if": {"column_id": "Empresa"}, "color": AZUL, "fontWeight": "600", "cursor": "pointer"},
                 ]),
             html.Div("Haga clic en el código de una empresa para abrir su ficha. Los identificadores son anónimos "
-                     "(hash del NIT): el tablero no muestra razones sociales. El puntaje (0-100) ordena el riesgo; "
-                     "no es una probabilidad calibrada.", className="nota"),
+                     "(hash del NIT): el tablero no muestra razones sociales. El puntaje (0-100) ordena el riesgo y la "
+                     "probabilidad calibrada estima la chance de abrir insolvencia el año siguiente; ambos los "
+                     "calcula la API.", className="nota"),
         ]),
     ]
 
@@ -388,6 +392,8 @@ def detalle_ficha(codigo, anio, subs, depto, cap):
                 html.Div([html.Span(fmt(r["puntaje100"], 1), style={"fontSize": 40, "fontWeight": 700},
                                     className="rojo" if r["banda"] == "Alta" else ""),
                           html.Span(" / 100  "), html.Span(r["banda"], className=f"chip {r['banda']}")]),
+                html.Div(f"Probabilidad calibrada de insolvencia al año siguiente: {fmt(r['prob100'], 2)} % "
+                         f"(tasa del sector: 0,3 %)", className="desc"),
                 html.Div(f"Puesto {int(r['puesto']):,} de {len(lista):,}".replace(",", ".") +
                          ("" if pd.isna(r["cambio"]) else f" · cambio frente al año anterior: {r['cambio']:+.1f} pts"),
                          className="desc"),
@@ -492,7 +498,9 @@ def simular(_, *valores):
         escenario["endeudamiento"] = esc_end
     if esc_deuda is not None:
         escenario["deuda_fin_activos"] = esc_deuda
-    p_actual, p_esc = M.calcular_riesgo([registro, escenario])
+    entrada, respuesta = M.llamada_api([registro, escenario])
+    p_actual, p_esc = respuesta["predictions"]
+    prob_actual = respuesta["resultados"][0]["probabilidad"]
 
     lista, umbral = lista_vigilancia(anio, subs, depto, cap)
     percentil = (lista["puntaje"] < p_actual).mean() * 100
@@ -501,9 +509,9 @@ def simular(_, *valores):
     banda = "Alta" if puesto <= np.ceil(n * cap / 100) else ("Media" if puesto <= np.ceil(n * (cap + 20) / 100)
                                                              else "Baja")
     en_vigilancia = p_actual >= umbral
-    entrada = {"inputs": [{k: (None if isinstance(v, float) and np.isnan(v) else v) for k, v in registro.items()}]}
-    salida = {"puntaje": round(float(p_actual), 4), "banda": banda, "en_vigilancia": bool(en_vigilancia),
-              "umbral": round(umbral, 4), "version": METRICAS["version"]}
+    entrada_mostrar = {"inputs": entrada["inputs"][:1]}
+    salida_mostrar = {"errors": respuesta["errors"], "version": respuesta["version"],
+                      "resultados": respuesta["resultados"][:1]}
 
     escala = go.Figure(go.Bar(x=[100], y=[""], orientation="h", marker_color="#e8ecf2"))
     escala.add_vline(x=umbral * 100, line_color="#1f3556", line_dash="dash",
@@ -513,8 +521,9 @@ def simular(_, *valores):
 
     return [
         html.H3("Resultado del modelo"),
-        html.Div(className="kpis", style={"gridTemplateColumns": "1fr 1fr 1fr"}, children=[
+        html.Div(className="kpis", children=[
             kpi("Puntaje de riesgo", fmt(p_actual * 100, 1), "escala 0-100", "rojo" if banda == "Alta" else ""),
+            kpi("Probabilidad calibrada", f"{fmt(prob_actual * 100, 2)} %", "insolvencia al año siguiente"),
             kpi("Banda", banda, f"capacidad de revisión {cap} %",
                 {"Alta": "rojo", "Media": "ambar", "Baja": "verde"}[banda]),
             kpi("Puesto estimado", f"{puesto:,} de {n:,}".replace(",", "."), f"percentil {fmt(percentil, 1)}"),
@@ -535,11 +544,11 @@ def simular(_, *valores):
             style_header={"fontWeight": "600", "backgroundColor": "#f3f5f8"}),
         html.Div(f"Efecto del escenario: {(p_esc - p_actual) * 100:+.1f} puntos.", className="desc",
                  style={"marginTop": 6}),
-        html.H3("Formato de la llamada al modelo", style={"marginTop": 14}),
-        html.Div("En esta entrega el tablero usa el modelo directamente; en la entrega final enviará esta misma "
-                 "entrada a la API (POST /predict).", className="desc"),
-        html.Pre(className="json", children="POST /predict\n" + json.dumps(entrada, ensure_ascii=False) +
-                 "\n\nRespuesta\n" + json.dumps(salida, ensure_ascii=False)),
+        html.H3("Llamada a la API", style={"marginTop": 14}),
+        html.Div(f"El tablero envió las dos empresas (actual y escenario) a {M.API_URL}/api/v1/predict; se "
+                 "muestra la primera.", className="desc"),
+        html.Pre(className="json", children="POST /api/v1/predict\n" + json.dumps(entrada_mostrar, ensure_ascii=False) +
+                 "\n\nRespuesta de la API\n" + json.dumps(salida_mostrar, ensure_ascii=False)),
     ]
 
 
@@ -547,20 +556,23 @@ def simular(_, *valores):
 # 5. Salud del modelo
 # ---------------------------------------------------------------------------------------------------------
 def vista_salud():
-    comp = METRICAS["comparacion"]
-    nombre_modelo = [k for k in comp if k.startswith("Modelo")][0]
-    m = comp[nombre_modelo]
-    alt = comp["Z'' de Altman (línea base)"]
-    end = comp["Endeudamiento (línea base)"]
-    prev = METRICAS["prevalencia_prueba"]
+    m = METRICAS["metricas_prueba"]
+    base = METRICAS["lineas_base_prueba"]
+    alt, end = base["altman_z2"], base["endeudamiento"]
+    datos_m = METRICAS["datos"]
+    ic = METRICAS["intervalos_95_prueba"]
+    cal = METRICAS["calibracion_en_conjunto"]["prueba"]
 
+    filas = [("Z'' de Altman (línea base)", alt), ("Endeudamiento (línea base)", end),
+             (f"Modelo {METRICAS['version']} (random forest)", m)]
     tabla = [{"Modelo": k, "AUC": fmt(v["auc"]), "AUC-PR": fmt(v["auc_pr"], 3),
-              "Eventos capturados al revisar el 10 %": f"{fmt(v['captura_top10'] * 100, 1)} %"}
-             for k, v in comp.items()]
+              "Eventos capturados al revisar el 10 %": f"{fmt(v['captura_top10'] * 100, 1)} %"} for k, v in filas]
 
     curva = go.Figure()
-    for nombre, color in (("Modelo", "#1f3556"), ("Z'' de Altman", AMBAR)):
-        x, y = METRICAS["curvas"][nombre]
+    cm = METRICAS["curva_captura_prueba"]
+    curvas = (("Modelo", cm["revisadas"], cm["capturados"], "#1f3556"),
+              ("Z'' de Altman", *METRICAS["curva_altman_prueba"], AMBAR))
+    for nombre, x, y, color in curvas:
         curva.add_trace(go.Scatter(x=np.array(x) * 100, y=np.array(y) * 100, mode="lines", name=nombre,
                                    line=dict(color=color, width=3)))
     curva.add_trace(go.Scatter(x=[0, 100], y=[0, 100], mode="lines", name="Al azar",
@@ -579,22 +591,24 @@ def vista_salud():
     estilo_grafica(f_psi, 260)
 
     imp = pd.Series(METRICAS["importancia"]).sort_values(ascending=False).head(5)
-    top = ", ".join(M.ETIQUETAS.get(v, v.replace("ciiu_", "subsector ")) for v in imp.index)
+    top = ", ".join(M.ETIQUETAS.get(v, v) for v in imp.index)
 
     return [
         html.Div(className="kpis", children=[
-            kpi("AUC", fmt(m["auc"]), f"Z'' de Altman {fmt(alt['auc'])} · endeudamiento {fmt(end['auc'])}", "verde"),
-            kpi("AUC-PR", fmt(m["auc_pr"], 3), f"{fmt(m['auc_pr'] / prev, 1)} veces la prevalencia "
-                                               f"({fmt(prev * 100)} %)", "verde"),
-            kpi("Brier", fmt(METRICAS["brier"], 4), "probabilidades sin calibrar (class_weight)", "ambar"),
+            kpi("AUC", fmt(m["auc"]), f"IC 95 %: {fmt(ic['auc'][0])} a {fmt(ic['auc'][1])} · Altman {fmt(alt['auc'])}",
+                "verde"),
             kpi("Eventos capturados al revisar el 10 %", f"{fmt(m['captura_top10'] * 100, 1)} %",
                 f"Z'' de Altman: {fmt(alt['captura_top10'] * 100, 1)} %", "verde"),
+            kpi("AUC-PR", fmt(m["auc_pr"], 3), f"{fmt(m['auc_pr_sobre_prevalencia'], 1)} veces la prevalencia "
+                                               f"({fmt(m['prevalencia'] * 100)} %)", "verde"),
+            kpi("Brier (probabilidad calibrada)", fmt(m["brier"], 4),
+                f"sin calibrar: {fmt(METRICAS['brier_sin_calibrar'], 4)}", "verde"),
         ]),
         html.Div(className="fila", children=[
             html.Div(className="tarjeta", children=[
                 html.H3("Comparación con las líneas base (prueba fuera de tiempo)"),
-                html.Div(f"Entrenado con {METRICAS['entrenamiento']} y evaluado en {METRICAS['prueba']} "
-                         f"({METRICAS['filas_prueba']:,} empresa-año, {METRICAS['eventos_prueba']} eventos)"
+                html.Div(f"Entrenado con {datos_m['anios_entrenamiento']} y evaluado en {datos_m['anios_prueba']} "
+                         f"({datos_m['filas_prueba']:,} empresa-año, {datos_m['eventos_prueba']} eventos)"
                          .replace(",", "."), className="desc"),
                 dash_table.DataTable(data=tabla, columns=[{"name": c, "id": c} for c in tabla[0]],
                                      style_cell={"fontSize": 13, "padding": "6px", "fontFamily": "Segoe UI, Arial"},
@@ -602,6 +616,8 @@ def vista_salud():
                                      style_data_conditional=[{"if": {"row_index": len(tabla) - 1},
                                                               "fontWeight": "700", "color": "#2f7d4f"}]),
                 html.Div("El modelo supera ambas líneas base en todas las métricas.", className="ok"),
+                html.Div(f"Calibración en la prueba: {cal['eventos_observados']} eventos observados frente a "
+                         f"{fmt(cal['eventos_esperados'], 0)} esperados por el modelo.", className="nota"),
             ]),
             html.Div(className="tarjeta", children=[
                 html.H3("Curva de captura de eventos"),
@@ -616,17 +632,18 @@ def vista_salud():
             html.Div(className="tarjeta", children=[
                 html.H3("Datos y versión del modelo"),
                 html.Ul(className="guia", children=[
-                    html.Li(f"Versión: {METRICAS['version']} ({METRICAS['modelo']}, registrado en MLflow, "
-                            "experimento alerta-insolvencia)"),
-                    html.Li(f"Entrenamiento: {METRICAS['entrenamiento']}, {METRICAS['filas_entrenamiento']:,} "
-                            f"empresa-año y {METRICAS['eventos_entrenamiento']} eventos".replace(",", ".")),
-                    html.Li(f"Prueba: {METRICAS['prueba']}"),
-                    html.Li("Objetivo: apertura de insolvencia al año siguiente (y_h1), CIIU 41, 43 y 68"),
+                    html.Li(f"Versión {METRICAS['version']}: {METRICAS['modelo']}, servido por la API "
+                            f"({M.API_URL}) y registrado en MLflow"),
+                    html.Li(f"Entrenamiento: {datos_m['anios_entrenamiento']}, {datos_m['filas_entrenamiento']:,} "
+                            f"empresa-año y {datos_m['eventos_entrenamiento']} eventos".replace(",", ".")),
+                    html.Li(f"Prueba: {datos_m['anios_prueba']}"),
+                    html.Li(f"Objetivo: {METRICAS['objetivo']}; universo CIIU 41, 43 y 68"),
                     html.Li(f"Variables con más peso: {top}"),
                 ]),
                 html.Div(className="aviso", children=(
-                    "Las probabilidades del modelo están infladas por el balanceo de clases: sirven para ordenar el "
-                    "riesgo, no como probabilidad real. Por eso el tablero muestra puntaje, puesto y banda.")),
+                    "La probabilidad está calibrada para estar en el orden de la tasa real del sector (0,3 % al año); "
+                    "es aproximada porque esa tasa cambia de un año a otro. Para decidir a quién revisar se usan el "
+                    "puntaje, el puesto y la banda.")),
             ]),
         ]),
     ]

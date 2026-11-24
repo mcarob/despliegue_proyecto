@@ -1,10 +1,12 @@
 """Lectura de la tabla resumen_empresas para el tablero.
 
 Los datos no están en GitHub: se obtienen con `dvc pull` (remoto S3 del proyecto) o copiando el archivo
-resumen_empresas (.parquet o .csv) en la carpeta data/processed/ del repositorio.
+resumen_empresas (.parquet o .csv) en la carpeta data/processed/ del repositorio. En Docker, la ruta del archivo se
+indica con la variable de entorno DATOS_RESUMEN.
 """
 
 import hashlib
+import os
 import pathlib
 
 import pandas as pd
@@ -22,6 +24,8 @@ SUBSECTORES = {
 
 
 def ruta_datos():
+    if os.environ.get("DATOS_RESUMEN"):
+        return pathlib.Path(os.environ["DATOS_RESUMEN"])
     for nombre in ("resumen_empresas.parquet", "resumen_empresas.csv"):
         ruta = CARPETA_DATOS / nombre
         if ruta.exists():
