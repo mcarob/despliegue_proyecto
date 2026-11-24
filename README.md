@@ -53,6 +53,7 @@ python src/build_resumen_empresas.py         # tabla resumen_empresas con razone
 export MLFLOW_TRACKING_URI=http://<IP-de-la-EC2>:8050
 python experiments/entrenar_modelos.py --datos data/processed/resumen_empresas.csv
 python experiments/iteracion_entrega_final.py   # iteración de la entrega final
+python experiments/iteracion_ronda2.py          # segunda ronda: búsqueda amplia (unos 12 minutos)
 # paquete del modelo y API (requiere tox):
 cd model-pkg && tox -e train && tox -e build && cd ..
 cd api && tox -e test_app && docker build -t alerta-insolvencia-api:2.0.0 .

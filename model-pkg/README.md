@@ -33,7 +33,10 @@ de más de 5.000 registros.
   `random_forest_hoja50` de la Entrega 2), con 19 variables: 16 razones financieras, 2 indicadores y el subsector.
 - **Elección:** en la iteración de la entrega final (`experiments/iteracion_entrega_final.py`) se compararon
   24 combinaciones de variables y modelos con validación temporal móvil (2019, 2020, 2021), sin tocar la prueba.
-  Este modelo quedó entre los mejores, y ninguna alternativa lo superó de forma robusta.
+  Este modelo quedó entre los mejores, y ninguna alternativa lo superó de forma robusta. Una segunda ronda
+  (`experiments/iteracion_ronda2.py`) probó 49 alternativas más: rejillas de random forest y boosting, submuestreo
+  balanceado, variables de historia y combinaciones. Tampoco hubo un ganador robusto, y el mejor de la validación
+  quedó por debajo en la prueba.
 - **Calibración:** las probabilidades del bosque están infladas por el balanceo (media 0,08 frente a una tasa de
   0,003). La calibración de Platt, ajustada con las predicciones fuera de tiempo de 2019-2021, las lleva al orden de
   la tasa real: en la prueba la media queda en 0,42 % frente a 0,30 % observado (92 eventos esperados y 66 reales).

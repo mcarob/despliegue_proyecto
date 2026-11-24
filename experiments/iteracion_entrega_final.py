@@ -147,10 +147,10 @@ def validacion_movil(d, numericas, categoricas, fabrica, escalar=False, objetivo
     return np.concatenate(y), np.concatenate(p), np.concatenate(a)
 
 
-def prueba(d, numericas, categoricas, fabrica, objetivo="y_h1"):
+def prueba(d, numericas, categoricas, fabrica, objetivo="y_h1", escalar=False):
     columnas = numericas + INDICADORES + categoricas
     ent, pru = d[d["anio"].between(2016, 2021)], d[d["anio"].between(2022, 2024)]
-    m = pipeline(numericas, categoricas, fabrica(), False).fit(ent[columnas], etiqueta(ent, objetivo, 2022))
+    m = pipeline(numericas, categoricas, fabrica(), escalar).fit(ent[columnas], etiqueta(ent, objetivo, 2022))
     return pru["y_h1"].to_numpy(), m.predict_proba(pru[columnas])[:, 1], pru["anio"].to_numpy()
 
 

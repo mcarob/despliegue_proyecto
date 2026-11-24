@@ -84,6 +84,36 @@ y la captura en el 10 % de la validación, y una alternativa se adopta solo si m
 la fila del año anterior quedaba marcada con un evento que todavía no se conocía al momento de predecir. Con la purga,
 la ganancia en las métricas de decisión desaparece.
 
+## Segunda ronda: búsqueda amplia
+
+Script: `experiments/iteracion_ronda2.py` (experimento de MLflow **`alerta-insolvencia-ronda2`**). Resultados en
+`experiments/resultados_ronda2.json`; figura `docs/figuras/modelos_06_ronda2.png`. Se usaron las mismas reglas de la
+primera ronda, escritas en el script antes de correrlo. La comparación es pareada contra el modelo actual, y el
+remuestreo se hace dentro de cada año.
+
+| Qué se probó | Resultado en validación |
+|---|---|
+| **Ruido de fondo:** el modelo actual con 5 semillas más | El AUC-PR va de 0,054 a 0,062 y la captura por año de 56,4 % a 58,5 % **sin cambiar nada más que la semilla** |
+| Random forest: 26 combinaciones (hojas de 5 a 100, variables por división, profundidad, tipo de balanceo, submuestreo) | Hojas más pequeñas (10 y 20) suben el AUC-PR a 0,068-0,070, pero no capturan más (55-57 %). Limitar la profundidad o quitar el balanceo empeora |
+| Gradient boosting: 12 combinaciones (tasa, hojas, regularización, con y sin balanceo) | Todas por debajo: AUC-PR de 0,023 a 0,041 |
+| Submuestreo balanceado en bolsas (todos los eventos y una muestra de no eventos en cada bolsa) | El mejor de la ronda en AUC-PR (0,072), con la misma captura (55 %) |
+| Variables de historia (pérdidas seguidas, reportó el año anterior, edad, crecimiento de ingresos) | Empeoran: AUC-PR de 0,054 a 0,058 y captura de 52 % a 54 % |
+| 5 combinaciones de modelos (promedio de rangos dentro de cada año) | La mejor llega a 58,5 % de captura, dentro del ruido de fondo |
+| Estabilidad: el actual y el de hojas de 20 con 2.000 árboles y 3 semillas | Hojas de 20: AUC-PR de 0,066 a 0,071 frente a 0,057-0,063, pero captura de 56,4-57,4 % frente a 57,4-58,5 %. Ordena mejor los primeros puestos, pero no encuentra más eventos en el 10 % que revisa el banco |
+
+**Decisión: se mantiene el modelo actual.** El mejor en validación fue el submuestreo con boosting. Frente al actual
+mejora el AUC (+0,017, IC +0,005 a +0,031), pero no las métricas de decisión: AUC-PR +0,011 (IC −0,013 a +0,039) y
+captura −0,7 puntos (IC −7 a +6). No cumple la regla.
+
+**La prueba confirma la decisión.** Se miró una sola vez, al final. En 2022-2024 ese ganador queda por debajo del
+actual: AUC-PR 0,042 frente a 0,047 y captura por año 65,2 % frente a 66,7 %. Es el efecto esperado al escoger el
+mejor entre 49 alternativas con 94 eventos: parte de su ventaja en validación era azar. Por eso la regla exige un
+intervalo por encima de cero, y no basta con quedar primero en la tabla.
+
+**Lectura.** Con este tamaño de datos (171 eventos para entrenar y 94 para validar), las diferencias entre modelos
+razonables son del mismo tamaño que cambiar la semilla. El límite está en los datos, no en el algoritmo. Lo que más
+podría mejorar el modelo es tener más eventos (más años o más sectores), no un algoritmo más complejo.
+
 **Modelo final (versión 2.0.0 del paquete, `model-pkg/`).** Es el random forest de la Entrega 2 más la calibración, con
 niveles de alerta: alto si está en el 10 % de mayor puntaje de 2025, medio si está en el 20 % siguiente.
 
