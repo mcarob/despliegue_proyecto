@@ -44,6 +44,7 @@ def codigo_anonimo(nit):
 def cargar_datos():
     ruta = ruta_datos()
     d = pd.read_parquet(ruta) if ruta.suffix == ".parquet" else pd.read_csv(ruta, low_memory=False)
+    d["nit"] = d["nit"].astype(str)  # texto en .parquet y número en .csv: se unifica para cruzar con los puntajes
     d["ciiu_grupo"] = d["ciiu_grupo"].astype(str).str[:2]
     d = d[d["ciiu_grupo"].isin(SUBSECTORES)].copy()
     d["subsector"] = d["ciiu_grupo"].map(SUBSECTORES)

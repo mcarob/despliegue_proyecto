@@ -174,7 +174,8 @@ def preparar():
 
 def cargar_puntajes():
     version = esperar_api()["model_version"]
-    return pd.read_csv(CARPETA_ARTEFACTOS / f"puntajes_modelo_{version}.csv")
+    # el NIT se lee como texto: coincide con el de resumen_empresas, sea .parquet o .csv
+    return pd.read_csv(CARPETA_ARTEFACTOS / f"puntajes_modelo_{version}.csv", dtype={"nit": str})
 
 
 def cargar_metricas():
