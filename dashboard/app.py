@@ -262,7 +262,7 @@ def vista_panorama(anio, subs, depto, cap):
                 dcc.Graph(figure=f4, config={"displayModeBar": False})]),
         ]),
         html.Div("Tasas calculadas con resumen_empresas (CIIU 41, 43 y 68; sin años posteriores al evento). "
-                 "Las bandas salen del modelo random forest de la Entrega 2.", className="nota"),
+                 "Las bandas las calcula la API con el modelo 2.0.0 (random forest calibrado).", className="nota"),
     ]
 
 
