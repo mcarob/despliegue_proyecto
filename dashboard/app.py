@@ -127,7 +127,9 @@ app = Dash(__name__, suppress_callback_exceptions=True, title="Alerta temprana d
 server = app.server  # servidor web que usa gunicorn en Docker
 
 app.layout = html.Div(className="contenedor", children=[
-    dcc.Location(id="url"),
+    # callback-nav: al abrir la ficha desde la lista cambia la URL sin recargar la página, así no se pierden la
+    # empresa elegida (dcc.Store) ni los filtros
+    dcc.Location(id="url", refresh="callback-nav"),
     dcc.Store(id="empresa", data=None),
     html.Div(className="barra", children=[
         html.H2("Alerta temprana"),
